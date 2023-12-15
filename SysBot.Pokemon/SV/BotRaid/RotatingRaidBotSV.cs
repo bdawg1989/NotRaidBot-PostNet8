@@ -64,6 +64,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         private DateTime StartTime = DateTime.Now;
         public static RaidContainer? container;
         public static bool IsKitakami = false;
+        public static bool IsBlueberry = false;
         private DateTime TimeForRollBackCheck = DateTime.Now;
         private static bool hasSwapped = false;
         private uint originalAreaId;
@@ -546,6 +547,21 @@ namespace SysBot.Pokemon.SV.BotRaid
                     return;
                 }
             }
+
+            /*
+            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0xC80, token).ConfigureAwait(false);
+            for (int i = 69; i < 95; i++)
+            {
+                var seed = BitConverter.ToUInt32(dataMemory.Slice((i - 69) * 0x20, 4).Span);
+                if (seed == 0)
+                {
+                    SeedIndexToReplace = i;
+                    Log($"Raid Den Located at {i + 1:00}");
+                    IsBlueberry = true;
+                    return;
+                }
+            }
+            */
             Log($"Index not located.");
 
         }
@@ -964,6 +980,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             int countP = 0;
             int countK = 0;
+            int CountB = 0;
 
             // Read data from RaidBlockPointerP
             var dataP = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
@@ -2613,6 +2630,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             var dataP = Array.Empty<byte>();
             var dataK = Array.Empty<byte>();
+          //var dataB = Array.Empty<byte>();
 
             if (ShouldReadPaldeaRaids(init))
             {
@@ -2625,6 +2643,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                 dataK = await ReadKitakamiRaids(token);
                 await ProcessKitakamiRaids(dataK, token);
             }
+
+            /*
+            if (ShouldReadBlueberryRaids(init))
+            {
+                dataB = await ReadBlueberryRaids(token);
+                await ProcessBlueberryRaids(dataB, token);
+            }
+            */
 
             if (init)
             {
@@ -2647,6 +2673,13 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (RaidBlockPointerK == 0)
                     RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             }
+            /*
+            if (init || ShouldReadBlueberryRaids(init))
+            {
+                if (RaidBlockPointerB == 0)
+                    RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
+            } 
+            */
         }
 
         private async Task<string> DetermineGame(CancellationToken token)
@@ -2687,6 +2720,18 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             return await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, (int)RaidBlock.SIZE_KITAKAMI, token).ConfigureAwait(false);
         }
+
+        /*
+        private bool ShouldReadBlueberryRaids(bool init)
+        {
+            return init || SeedIndexToReplace >= 70;
+        }
+
+        private async Task<byte[]> ReadBlueberryRaids(CancellationToken token)
+        {
+            return await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, (int)RaidBlock.SIZE_BLUEBERRY, token).ConfigureAwait(false);
+        }
+        */
         private async Task LocateSeedIndexOnInit(CancellationToken token)
         {
             for (int rc = 0; rc < Settings.ActiveRaids.Count; rc++)
@@ -2787,6 +2832,28 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Invalid delivery group ID for {delivery} raid(s). Group IDs: {string.Join(", ", num4ListKitakami)}. Try deleting the \"cache\" folder.");
             }
         }
+        /*
+        private async Task ProcessBlueberryRaids(byte[] dataB, CancellationToken token)
+        {
+            int delivery, enc;
+            var num4ListBlueberry = new List<int>();
+
+            // Read all raids in the Blueberry region
+            (delivery, enc, num4ListBlueberry) = container.ReadAllRaids(dataB, StoryProgress, EventProgress, 0, TeraRaidMapParent.Blueberry);
+
+            // Log any failed encounters
+            if (enc > 0)
+            {
+                Log($"Failed to find encounters for {enc} raid(s).");
+            }
+
+            // Log any invalid delivery group IDs
+            if (delivery > 0)
+            {
+                Log($"Invalid delivery group ID for {delivery} raid(s). Group IDs: {string.Join(", ", num4ListBlueberry)}. Try deleting the \"cache\" folder.");
+            }
+        }
+        */
         private async Task ProcessAllRaids(CancellationToken token)
         {
             var allRaids = container.Raids;
@@ -2891,7 +2958,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 _ => 4 // default 6Unlocked
             };
 
-            var raid = new Raid(raidbyte, map); // map is -> TeraRaidMapParent.Paldea or .Kitakami
+            var raid = new Raid(raidbyte, map); // map is -> TeraRaidMapParent.Paldea, .Kitakami, or .Blueberry
             var progress = storyProgressLevel;
             var raid_delivery_group_id = raidDeliveryGroupID;
             var encounter = raid.GetTeraEncounter(container, raid.IsEvent ? 3 : progress, contentType == 3 ? 1 : raid_delivery_group_id);
