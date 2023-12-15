@@ -1711,6 +1711,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             var data = await SwitchConnection.PointerPeek(6, Offsets.TeraRaidCodePointer, token).ConfigureAwait(false);
             TeraRaidCode = Encoding.ASCII.GetString(data).ToLower(); // Convert to lowercase for easier reading
+            Log($"Raid Code: {TeraRaidCode}");
             return $"\n{TeraRaidCode}\n";
         }
 
