@@ -1258,7 +1258,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log($"Synced seed from index {index} to index {targetIndex}");
         }
 
-
         private async Task SwapRaidLocationsAsync(int currentRaidIndex, string raidType, CancellationToken token)
         {
             // We always swap with index 0
@@ -1312,7 +1311,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 hasSwapped = false;
             }
         }
-
 
         private async Task<uint> ReadValue(string fieldName, int size, List<long> pointer, CancellationToken token)
         {
@@ -1996,7 +1994,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
         }
 
-        Dictionary<string, string> TypeAdvantages = new Dictionary<string, string>()
+        readonly Dictionary<string, string> TypeAdvantages = new()
         {
             { "normal", "Fighting" },
             { "fire", "Water, Ground, Rock" },
@@ -2630,7 +2628,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             var dataP = Array.Empty<byte>();
             var dataK = Array.Empty<byte>();
-          //var dataB = Array.Empty<byte>();
+            //var dataB = Array.Empty<byte>();
 
             if (ShouldReadPaldeaRaids(init))
             {
@@ -2720,7 +2718,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             return await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, (int)RaidBlock.SIZE_KITAKAMI, token).ConfigureAwait(false);
         }
-
         /*
         private bool ShouldReadBlueberryRaids(bool init)
         {
@@ -2818,6 +2815,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 }
             }
         }
+
         private async Task ProcessKitakamiRaids(byte[] dataK, CancellationToken token)
         {
             int delivery, enc;
