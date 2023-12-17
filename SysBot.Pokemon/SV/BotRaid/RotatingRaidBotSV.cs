@@ -2786,8 +2786,11 @@ namespace SysBot.Pokemon.SV.BotRaid
                     if (raid.IsEvent)
                     {
                         eventRaidFoundP = true;
-                        Settings.EventSettings.EventActive = true;
-                        DisableMysteryRaidsIfEventActive();
+                        if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
+                        {
+                            Settings.EventSettings.EventActive = true;  // Update EventActive only if EventOn is true
+                            DisableMysteryRaidsIfEventActive();
+                        }
                         eventRaidPAreaId = (int)raid.Area;
                         eventRaidPDenId = (int)raid.Den;
 
@@ -2808,7 +2811,10 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (!eventRaidFoundP)
                 {
                     Settings.EventSettings.RaidDeliveryGroupID = -1;
-                    Settings.EventSettings.EventActive = false;
+                    if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
+                    {
+                        Settings.EventSettings.EventActive = false;  // Update EventActive only if EventOn is true
+                    }
                 }
             }
         }
