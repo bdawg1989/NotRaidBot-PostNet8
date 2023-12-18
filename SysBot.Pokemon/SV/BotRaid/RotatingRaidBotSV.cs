@@ -56,6 +56,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         private ulong ConnectedOffset;
         private ulong RaidBlockPointerP;
         private ulong RaidBlockPointerK;
+        private ulong RaidBlockPointerB;
         private readonly ulong[] TeraNIDOffsets = new ulong[3];
         private string TeraRaidCode { get; set; } = string.Empty;
         private string BaseDescription = string.Empty;
@@ -980,7 +981,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             int countP = 0;
             int countK = 0;
-            int CountB = 0;
+            int countB = 0;
 
             // Read data from RaidBlockPointerP
             var dataP = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
@@ -992,7 +993,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                     countP++;
             }
 
-            // Read data from RaidBlockPointerK for the remaining raids
+            // Read data from RaidBlockPointerK
             var dataK = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, 26 * 32, token).ConfigureAwait(false);
             Memory<byte> dataKMemory = dataK;
             for (int i = 0; i < 26; i++)
@@ -1002,11 +1003,22 @@ namespace SysBot.Pokemon.SV.BotRaid
                     countK++;
             }
 
+            // Read data from RaidBlockPointerB for Blueberry raids
+            var dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, 24 * 32, token).ConfigureAwait(false);
+            Memory<byte> dataBMemory = dataB;
+            for (int i = 0; i < 24; i++) // Adjust the loop count as per the number of raids in Blueberry
+            {
+                var seed = BitConverter.ToUInt32(dataBMemory.Slice(0 + i * 32, 4).Span);
+                if (seed != 0)
+                    countB++;
+            }
+
             if (trainers is not null)
             {
                 Log("Back in the overworld, checking if we won or lost.");
 
-                if (countP <= 68 && countK == 26 || countP == 69 && countK <= 25)
+                // Adjust the logic here as per how you determine win/loss with the addition of Blueberry
+                if ((countP <= 68 && countK == 26 && countB == 24) || (countP == 69 && countK <= 25 && countB <= 23))
                 {
                     Log("Yay!  We defeated the raid!");
                     WinCount++;
