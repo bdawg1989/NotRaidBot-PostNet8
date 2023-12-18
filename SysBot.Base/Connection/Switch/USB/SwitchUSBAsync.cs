@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using static SysBot.Base.SwitchOffsetType;
+using System.Text;
 
 namespace SysBot.Base
 {
@@ -129,7 +129,7 @@ namespace SysBot.Base
                 Send(SwitchCommand.PointerPoke(jumps, data, false));
             }, token);
         }
-
+        
         public Task<ulong> PointerAll(IEnumerable<long> jumps, CancellationToken token)
         {
             return Task.Run(() =>

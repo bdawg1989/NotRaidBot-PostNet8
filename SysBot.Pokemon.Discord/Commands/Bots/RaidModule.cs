@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -472,7 +473,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 return;
             }
             else
-            {
+            { 
                 var userId = Context.User.Id;
                 var raidParameters = Hub.Config.RotatingRaidSV.ActiveRaids;
                 var raidToUpdate = raidParameters.FirstOrDefault(r => r.RequestedByUserID == userId);

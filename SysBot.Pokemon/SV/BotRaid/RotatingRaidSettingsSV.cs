@@ -234,7 +234,6 @@ namespace SysBot.Pokemon
 
             public override string ToString() => "4* Raids Settings";
         }
-
         [Category("MysteryRaids"), TypeConverter(typeof(ExpandableObjectConverter))]
         public class Unlocked5StarSettings
         {
@@ -250,7 +249,6 @@ namespace SysBot.Pokemon
 
             public override string ToString() => "5* Raids Settings";
         }
-
         [Category("MysteryRaids"), TypeConverter(typeof(ExpandableObjectConverter))]
         public class Unlocked6StarSettings
         {
@@ -269,6 +267,7 @@ namespace SysBot.Pokemon
 
             public override string ToString() => "6* Raids Settings";
         }
+
 
         [Category(Hosting), TypeConverter(typeof(CategoryConverter<LobbyFiltersCategory>))]
         public class LobbyFiltersCategory

@@ -111,10 +111,10 @@ namespace SysBot.Base
                 LogUtil.LogError("Maximum number of retry attempts reached. Not restarting.", Bot.Connection.Name);
             }
         }
+    
 
 
-
-        public void Resume()
+public void Resume()
         {
             Start();
         }
