@@ -2817,27 +2817,34 @@ namespace SysBot.Pokemon.SV.BotRaid
                 int eventRaidPDenId = -1;
                 int raidIndex = 0;
 
+                // Generate possible groups list once, outside the loop
+                List<int> possibleGroups = GetPossibleGroups(container);
+
                 foreach (var raid in container.Raids)
                 {
                     if (raid.IsEvent)
                     {
                         eventRaidFoundP = true;
-                        if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
+                        var raidDeliveryGroupId = raid.GetDeliveryGroupID(container.DeliveryRaidPriority, possibleGroups, raidIndex);
+
+                        if (raidDeliveryGroupId != -1)
                         {
-                            Settings.EventSettings.EventActive = true;  // Update EventActive only if EventOn is true
-                            DisableMysteryRaidsIfEventActive();
+                            Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupId;
+                            Log($"Updating Delivery Group ID to {raidDeliveryGroupId}.");
                         }
-                        eventRaidPAreaId = (int)raid.Area;
-                        eventRaidPDenId = (int)raid.Den;
+                        else
+                        {
+                            Log("Failed to determine a valid Delivery Group ID.");
+                        }
 
                         var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
                         Log($"Event Raid found! Located in {areaText}");
 
-                       /* if (raidIndex < num4List.Count)
+                        if (Settings.EventSettings.EventsOn)
                         {
-                            Settings.EventSettings.RaidDeliveryGroupID = num4List[raidIndex];
-                            Log($"Updating Delivery Group ID to {num4List[raidIndex]}.");
-                        } */
+                            Settings.EventSettings.EventActive = true;
+                            DisableMysteryRaidsIfEventActive();
+                        }
 
                         break;
                     }
@@ -2847,12 +2854,35 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (!eventRaidFoundP)
                 {
                     Settings.EventSettings.RaidDeliveryGroupID = -1;
-                    if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
+                    if (Settings.EventSettings.EventsOn)
                     {
-                        Settings.EventSettings.EventActive = false;  // Update EventActive only if EventOn is true
+                        Settings.EventSettings.EventActive = false;
                     }
                 }
             }
+        }
+
+        private List<int> GetPossibleGroups(RaidContainer container)
+        {
+            List<int> possibleGroups = new List<int>();
+            if (container.DistTeraRaids is not null)
+            {
+                foreach (TeraDistribution e in container.DistTeraRaids)
+                {
+                    if (TeraDistribution.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
+                        possibleGroups.Add(e.DeliveryGroupID);
+                }
+            }
+
+            if (container.MightTeraRaids is not null)
+            {
+                foreach (TeraMight e in container.MightTeraRaids)
+                {
+                    if (TeraMight.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
+                        possibleGroups.Add(e.DeliveryGroupID);
+                }
+            }
+            return possibleGroups;
         }
 
         private async Task ProcessKitakamiRaids(byte[] dataK, CancellationToken token)
