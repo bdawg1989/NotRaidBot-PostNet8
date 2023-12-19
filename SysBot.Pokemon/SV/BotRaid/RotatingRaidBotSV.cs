@@ -523,39 +523,44 @@ namespace SysBot.Pokemon.SV.BotRaid
                 return;
             }
 
+            string raidType;
             var data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
             for (int i = 0; i < 69; i++)  // Zero-based index for Paldea Raids
             {
-                var seed = BitConverter.ToUInt32(data.AsSpan(i * 32, 4));
+                var seed = BitConverter.ToUInt32(data.AsSpan(0x20 + i * 0x20, 4));
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;  // Zero-based index
-                    Log($"Raid Den Located at {i + 1:00} in Paldea map");
+                    raidType = "Paldea";
+                    Log($"Raid Den Located at {i + 1:00} in {raidType} map");
                     return;
                 }
             }
 
             data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, (int)RaidBlock.SIZE_KITAKAMI, token).ConfigureAwait(false);
-            for (int i = 0; i < 25; i++)  // Zero-based index for Kitakami Raids
+            for (int i = 69; i < 95; i++)  // Zero-based index for Kitakami Raids
             {
-                var seed = BitConverter.ToUInt32(data.AsSpan(i * 32, 4));
+                var seed = BitConverter.ToUInt32(data.AsSpan((i - 69) * 0x20, 4));
                 if (seed == 0)
                 {
-                    SeedIndexToReplace = i + 69;  // Adjust for Kitakami starting index
-                    Log($"Raid Den Located at {i + 70:00} in Kitakami map");
+                    SeedIndexToReplace = i;  // Zero-based index
+                    raidType = "Kitakami";
+                    Log($"Raid Den Located at {i + 1:00} in {raidType} map");
                     IsKitakami = true;
                     return;
                 }
             }
 
+            // Adding support for Blueberry Raids
             data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, (int)RaidBlock.SIZE_BLUEBERRY, token).ConfigureAwait(false);
-            for (int i = 0; i < 23; i++)  // Zero-based index for Blueberry Raids
+            for (int i = 94; i < 118; i++)  // Zero-based index for Blueberry Raids
             {
-                var seed = BitConverter.ToUInt32(data.AsSpan(i * 32, 4));
+                var seed = BitConverter.ToUInt32(data.AsSpan((i - 93) * 0x20, 4));
                 if (seed == 0)
                 {
-                    SeedIndexToReplace = i + 93;  // Adjust for Blueberry starting index
-                    Log($"Raid Den Located at {i + 94:00} in Blueberry map");
+                    SeedIndexToReplace = i;  // Zero-based index
+                    raidType = "Blueberry";
+                    Log($"Raid Den Located at {i + 1:00} in {raidType} map");
                     IsBlueberry = true;
                     return;
                 }
