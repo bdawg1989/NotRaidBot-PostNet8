@@ -61,7 +61,21 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
 
             try
             {
-                var selectedMap = IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea;
+                TeraRaidMapParent selectedMap;
+
+                if (IsBlueberry)
+                {
+                    selectedMap = TeraRaidMapParent.Blueberry;
+                }
+                else if (IsKitakami)
+                {
+                    selectedMap = TeraRaidMapParent.Kitakami;
+                }
+                else
+                {
+                    selectedMap = TeraRaidMapParent.Paldea;
+                }
+
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
                 var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
                 var isEvent = eventType == "Event";
@@ -214,7 +228,20 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             }
 
             // Determine the correct map
-            var selectedMap = IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea;
+            TeraRaidMapParent selectedMap;
+
+            if (IsBlueberry)
+            {
+                selectedMap = TeraRaidMapParent.Blueberry; 
+            }
+            else if (IsKitakami)
+            {
+                selectedMap = TeraRaidMapParent.Kitakami;
+            }
+            else
+            {
+                selectedMap = TeraRaidMapParent.Paldea;
+            }
 
             var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
             var rewardsToShow = settings.EmbedToggles.RewardsToShow;
@@ -328,7 +355,20 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 return;
             }
             // Determine the correct map
-            var selectedMap = IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea;
+            TeraRaidMapParent selectedMap;
+
+            if (IsBlueberry)
+            {
+                selectedMap = TeraRaidMapParent.Blueberry;
+            }
+            else if (IsKitakami)
+            {
+                selectedMap = TeraRaidMapParent.Kitakami;
+            }
+            else
+            {
+                selectedMap = TeraRaidMapParent.Paldea;
+            }
             var rewardsToShow = settings.EmbedToggles.RewardsToShow;
             var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
             var (pk, raidEmbed) = RaidInfoCommand(seed, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow);

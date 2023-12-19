@@ -56,6 +56,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         private ulong ConnectedOffset;
         private ulong RaidBlockPointerP;
         private ulong RaidBlockPointerK;
+        private ulong RaidBlockPointerB;
         private readonly ulong[] TeraNIDOffsets = new ulong[3];
         private string TeraRaidCode { get; set; } = string.Empty;
         private string BaseDescription = string.Empty;
@@ -523,47 +524,44 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             var data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
-            Memory<byte> dataMemory = data;
-            for (int i = 0; i < 69; i++)
+            for (int i = 0; i < 69; i++)  // Zero-based index for Paldea Raids
             {
-                var seed = BitConverter.ToUInt32(dataMemory.Slice(0x20 + i * 0x20, 4).Span);
+                var seed = BitConverter.ToUInt32(data.AsSpan(i * 32, 4));
                 if (seed == 0)
                 {
-                    SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00}");
+                    SeedIndexToReplace = i;  // Zero-based index
+                    Log($"Raid Den Located at {i + 1:00} in Paldea map");
                     return;
                 }
             }
 
-            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK + 0x10, 0xC80, token).ConfigureAwait(false);
-            for (int i = 69; i < 95; i++)
+            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, (int)RaidBlock.SIZE_KITAKAMI, token).ConfigureAwait(false);
+            for (int i = 0; i < 25; i++)  // Zero-based index for Kitakami Raids
             {
-                var seed = BitConverter.ToUInt32(dataMemory.Slice((i - 69) * 0x20, 4).Span);
+                var seed = BitConverter.ToUInt32(data.AsSpan(i * 32, 4));
                 if (seed == 0)
                 {
-                    SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00}");
+                    SeedIndexToReplace = i + 69;  // Adjust for Kitakami starting index
+                    Log($"Raid Den Located at {i + 70:00} in Kitakami map");
                     IsKitakami = true;
                     return;
                 }
             }
 
-            /*
-            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0xC80, token).ConfigureAwait(false);
-            for (int i = 69; i < 95; i++)
+            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, (int)RaidBlock.SIZE_BLUEBERRY, token).ConfigureAwait(false);
+            for (int i = 0; i < 23; i++)  // Zero-based index for Blueberry Raids
             {
-                var seed = BitConverter.ToUInt32(dataMemory.Slice((i - 69) * 0x20, 4).Span);
+                var seed = BitConverter.ToUInt32(data.AsSpan(i * 32, 4));
                 if (seed == 0)
                 {
-                    SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00}");
+                    SeedIndexToReplace = i + 93;  // Adjust for Blueberry starting index
+                    Log($"Raid Den Located at {i + 94:00} in Blueberry map");
                     IsBlueberry = true;
                     return;
                 }
             }
-            */
-            Log($"Index not located.");
 
+            Log($"Index not located.");
         }
 
         private async Task CompleteRaid(CancellationToken token)
@@ -980,35 +978,45 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             int countP = 0;
             int countK = 0;
-            int CountB = 0;
+            int countB = 0;  // Count for Blueberry raids
 
-            // Read data from RaidBlockPointerP
+            // Read data from RaidBlockPointerP (Paldea Raids)
             var dataP = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
-            Memory<byte> dataPMemory = dataP;
-            for (int i = 0; i < 69; i++)
+            for (int i = 0; i < 69; i++)  // 69 Paldea raids
             {
-                var seed = BitConverter.ToUInt32(dataPMemory.Slice(0 + i * 32, 4).Span);
+                var seed = BitConverter.ToUInt32(dataP.AsSpan(i * 32, 4));
                 if (seed != 0)
                     countP++;
             }
 
-            // Read data from RaidBlockPointerK for the remaining raids
-            var dataK = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, 26 * 32, token).ConfigureAwait(false);
-            Memory<byte> dataKMemory = dataK;
-            for (int i = 0; i < 26; i++)
+            // Read data from RaidBlockPointerK (Kitakami Raids)
+            var dataK = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, 25 * 32, token).ConfigureAwait(false);
+            for (int i = 0; i < 25; i++)  // 25 Kitakami raids
             {
-                var seed = BitConverter.ToUInt32(dataKMemory.Slice(0 + i * 32, 4).Span);
+                var seed = BitConverter.ToUInt32(dataK.AsSpan(i * 32, 4));
                 if (seed != 0)
                     countK++;
+            }
+
+            // Read data from RaidBlockPointerB (Blueberry Raids)
+            var dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, 23 * 32, token).ConfigureAwait(false);
+            for (int i = 0; i < 23; i++)  // 23 Blueberry raids
+            {
+                var seed = BitConverter.ToUInt32(dataB.AsSpan(i * 32, 4));
+                if (seed != 0)
+                    countB++;
             }
 
             if (trainers is not null)
             {
                 Log("Back in the overworld, checking if we won or lost.");
 
-                if (countP <= 68 && countK == 26 || countP == 69 && countK <= 25)
+                // Adjust the win/loss condition based on the raid counts
+                if ((countP < 69 && countK == 25 && countB == 23) ||
+                    (countP == 69 && countK < 25 && countB == 23) ||
+                    (countP == 69 && countK == 25 && countB < 23))
                 {
-                    Log("Yay!  We defeated the raid!");
+                    Log("Yay! We defeated the raid!");
                     WinCount++;
                 }
                 else
@@ -1380,20 +1388,26 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             if (index < 69)
             {
-                return new(Offsets.RaidBlockPointerP)
+                return new List<long>(Offsets.RaidBlockPointerP)
                 {
-                    [3] = 0x40 + (index + 1) * 0x20
+                    [3] = 0x40 + ((index + 1) * 0x20)
+                };
+            }
+            else if (index < 94)
+            {
+                return new List<long>(Offsets.RaidBlockPointerK)
+                {
+                    [3] = 0xCE8 + ((index - 69) * 0x20)
                 };
             }
             else
             {
-                return new(Offsets.RaidBlockPointerK)
+                return new List<long>(Offsets.RaidBlockPointerB)
                 {
-                    [3] = 0xCE8 + (index - 69) * 0x20
+                    [3] = 0x1968 + ((index - 93) * 0x20)
                 };
             }
         }
-
         private async Task SanitizeRotationCount(CancellationToken token)
         {
             await Task.Delay(0_050, token).ConfigureAwait(false);
@@ -2617,7 +2631,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task ReadRaids(bool init, CancellationToken token)
         {
-            Log("Reading Raids...");
+            Log("Getting Raid data...");
             await InitializeRaidBlockPointers(init, token);
 
             string game = await DetermineGame(token);
@@ -2628,28 +2642,30 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             var dataP = Array.Empty<byte>();
             var dataK = Array.Empty<byte>();
-            //var dataB = Array.Empty<byte>();
+            var dataB = Array.Empty<byte>();
 
             if (ShouldReadPaldeaRaids(init))
             {
                 dataP = await ReadPaldeaRaids(token);
+                Log("Reading Paldea Raids...");
                 await ProcessPaldeaRaids(dataP, token);
             }
 
             if (ShouldReadKitakamiRaids(init))
             {
                 dataK = await ReadKitakamiRaids(token);
+                Log("Reading Kitakami Raids...");
                 await ProcessKitakamiRaids(dataK, token);
             }
 
-            /*
+            
             if (ShouldReadBlueberryRaids(init))
             {
                 dataB = await ReadBlueberryRaids(token);
+                Log("Reading Blueberry Raids...");
                 await ProcessBlueberryRaids(dataB, token);
             }
-            */
-
+            
             if (init)
             {
                 await LocateSeedIndexOnInit(token);
@@ -2671,13 +2687,13 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (RaidBlockPointerK == 0)
                     RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             }
-            /*
+            
             if (init || ShouldReadBlueberryRaids(init))
             {
                 if (RaidBlockPointerB == 0)
                     RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
             } 
-            */
+            
         }
 
         private async Task<string> DetermineGame(CancellationToken token)
@@ -2701,7 +2717,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private bool ShouldReadPaldeaRaids(bool init)
         {
-            return init || SeedIndexToReplace >= 0 && SeedIndexToReplace <= 69;
+            return init || (SeedIndexToReplace >= 0 && SeedIndexToReplace < 69);
         }
 
         private async Task<byte[]> ReadPaldeaRaids(CancellationToken token)
@@ -2711,24 +2727,24 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private bool ShouldReadKitakamiRaids(bool init)
         {
-            return init || SeedIndexToReplace >= 70;
+            return init || (SeedIndexToReplace >= 69 && SeedIndexToReplace < 94);
         }
 
         private async Task<byte[]> ReadKitakamiRaids(CancellationToken token)
         {
             return await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, (int)RaidBlock.SIZE_KITAKAMI, token).ConfigureAwait(false);
         }
-        /*
+
         private bool ShouldReadBlueberryRaids(bool init)
         {
-            return init || SeedIndexToReplace >= 70;
+            return init || SeedIndexToReplace >= 94;
         }
 
         private async Task<byte[]> ReadBlueberryRaids(CancellationToken token)
         {
             return await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, (int)RaidBlock.SIZE_BLUEBERRY, token).ConfigureAwait(false);
         }
-        */
+
         private async Task LocateSeedIndexOnInit(CancellationToken token)
         {
             for (int rc = 0; rc < Settings.ActiveRaids.Count; rc++)
@@ -2743,9 +2759,28 @@ namespace SysBot.Pokemon.SV.BotRaid
                         if (Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Might || Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Distribution)
                             continue;
 
-                        SeedIndexToReplace = i;
                         RotationCount = rc;
-                        Log($"Raid Den Located at {i + 1:00}");
+
+                        // Determine the raid type and adjust the index accordingly
+                        string raidType;
+                        int adjustedIndex;
+                        if (ShouldReadBlueberryRaids(true))
+                        {
+                            raidType = "Blueberry";
+                            adjustedIndex = i + 94; // Blueberry starts at index 94
+                        }
+                        else if (ShouldReadKitakamiRaids(true))
+                        {
+                            raidType = "Kitakami";
+                            adjustedIndex = i + 69; // Kitakami starts at index 69
+                        }
+                        else
+                        {
+                            raidType = "Paldea";
+                            adjustedIndex = i; // Paldea starts at index 0
+                        }
+                        SeedIndexToReplace = adjustedIndex;
+                        Log($"Raid Den Located at {adjustedIndex + 1:00} in {raidType} map");
                         Log($"Rotation Count set to {RotationCount}");
                         return;
                     }
@@ -2756,9 +2791,8 @@ namespace SysBot.Pokemon.SV.BotRaid
         private async Task ProcessPaldeaRaids(byte[] dataP, CancellationToken token)
         {
             int delivery, enc;
-            var num4List = new List<int>();
 
-            (delivery, enc, num4List) = container.ReadAllRaids(dataP, StoryProgress, EventProgress, 0, TeraRaidMapParent.Paldea);
+            (delivery, enc) = container.ReadAllRaids(dataP, StoryProgress, EventProgress, 0, TeraRaidMapParent.Paldea);
 
             if (enc > 0)
             {
@@ -2767,7 +2801,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             if (delivery > 0)
             {
-                Log($"Invalid delivery group ID for {delivery} raid(s). Group IDs: {string.Join(", ", num4List)}. Try deleting the \"cache\" folder.");
+                Log($"Invalid delivery group ID for {delivery} raid(s). Try deleting the \"cache\" folder.");
             }
 
             GameProgress currentProgress = (GameProgress)StoryProgress;
@@ -2794,11 +2828,11 @@ namespace SysBot.Pokemon.SV.BotRaid
                         var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
                         Log($"Event Raid found! Located in {areaText}");
 
-                        if (raidIndex < num4List.Count)
+                       /* if (raidIndex < num4List.Count)
                         {
                             Settings.EventSettings.RaidDeliveryGroupID = num4List[raidIndex];
                             Log($"Updating Delivery Group ID to {num4List[raidIndex]}.");
-                        }
+                        } */
 
                         break;
                     }
@@ -2819,10 +2853,9 @@ namespace SysBot.Pokemon.SV.BotRaid
         private async Task ProcessKitakamiRaids(byte[] dataK, CancellationToken token)
         {
             int delivery, enc;
-            var num4ListKitakami = new List<int>();
 
             // Read all raids in the Kitakami region
-            (delivery, enc, num4ListKitakami) = container.ReadAllRaids(dataK, StoryProgress, EventProgress, 0, TeraRaidMapParent.Kitakami);
+            (delivery, enc) = container.ReadAllRaids(dataK, StoryProgress, EventProgress, 0, TeraRaidMapParent.Kitakami);
 
             // Log any failed encounters
             if (enc > 0)
@@ -2833,17 +2866,16 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Log any invalid delivery group IDs
             if (delivery > 0)
             {
-                Log($"Invalid delivery group ID for {delivery} raid(s). Group IDs: {string.Join(", ", num4ListKitakami)}. Try deleting the \"cache\" folder.");
+                Log($"Invalid delivery group ID for {delivery} raid(s). Try deleting the \"cache\" folder.");
             }
         }
-        /*
+        
         private async Task ProcessBlueberryRaids(byte[] dataB, CancellationToken token)
         {
             int delivery, enc;
-            var num4ListBlueberry = new List<int>();
 
             // Read all raids in the Blueberry region
-            (delivery, enc, num4ListBlueberry) = container.ReadAllRaids(dataB, StoryProgress, EventProgress, 0, TeraRaidMapParent.Blueberry);
+            (delivery, enc) = container.ReadAllRaids(dataB, StoryProgress, EventProgress, 0, TeraRaidMapParent.Blueberry);
 
             // Log any failed encounters
             if (enc > 0)
@@ -2854,10 +2886,10 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Log any invalid delivery group IDs
             if (delivery > 0)
             {
-                Log($"Invalid delivery group ID for {delivery} raid(s). Group IDs: {string.Join(", ", num4ListBlueberry)}. Try deleting the \"cache\" folder.");
+                Log($"Invalid delivery group ID for {delivery} raid(s). Try deleting the \"cache\" folder.");
             }
         }
-        */
+        
         private async Task ProcessAllRaids(CancellationToken token)
         {
             var allRaids = container.Raids;
