@@ -11,7 +11,7 @@
     </PackageReference>
     <PackageReference Include="FlatSharp.Runtime" Version="7.4.0" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="PKHeX.Core" Version="23.10.12" />
+    <PackageReference Include="PKHeX.Core" Version="23.12.19" />
     <PackageReference Include="KdSoft.FlatBuffers" Version="1.12.0" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.118" />
     <ProjectReference Include="..\SysBot.Base\SysBot.Base.csproj" />

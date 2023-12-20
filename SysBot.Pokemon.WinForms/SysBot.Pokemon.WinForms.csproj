@@ -20,7 +20,7 @@
   <ItemGroup>
     <PackageReference Include="Discord.Net" Version="3.13.0" />
     <PackageReference Include="MySql.Data" Version="8.2.0" />
-    <PackageReference Include="PKHeX.Core" Version="23.10.12" />
+    <PackageReference Include="PKHeX.Core" Version="23.12.19" />
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
   </ItemGroup>
