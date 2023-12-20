@@ -2656,7 +2656,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task ReadRaids(bool init, CancellationToken token)
         {
-            Log("Starting raid reads..");
+            Log("Reading Raid Data...");
             if (init)
             {
                 if (RaidBlockPointerP == 0)
@@ -2884,8 +2884,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                                 SeedIndexToReplace = i;
                             }
 
-                            Log($"Found matching seed: {hexSeed} at {i + 1:00} in {region} map.");
-                            Log($"Setting SeedIndexToReplace to {SeedIndexToReplace}.");
+                            Log($"Found matching seed: {hexSeed} at {i + 1:00} in {region}.");
                             RotationCount = rc;
                             Log($"Rotation Count set to {RotationCount}.");
                             return;
