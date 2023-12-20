@@ -550,7 +550,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             // Adding support for Blueberry Raids
-            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, (int)RaidBlock.SIZE_BLUEBERRY, token).ConfigureAwait(false);
+            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0x19B0, token).ConfigureAwait(false);
             for (int i = 94; i < 118; i++)  // Blueberry Raids
             {
                 var seed = BitConverter.ToUInt32(data.AsSpan((i - 94) * 0x20, 4));
@@ -562,8 +562,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                     return;
                 }
             }
-
-
             Log($"Index not located.");
         }
 
