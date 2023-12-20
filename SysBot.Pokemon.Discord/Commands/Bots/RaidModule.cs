@@ -61,21 +61,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
 
             try
             {
-                TeraRaidMapParent selectedMap;
-
-                if (IsBlueberry)
-                {
-                    selectedMap = TeraRaidMapParent.Blueberry;
-                }
-                else if (IsKitakami)
-                {
-                    selectedMap = TeraRaidMapParent.Kitakami;
-                }
-                else
-                {
-                    selectedMap = TeraRaidMapParent.Paldea;
-                }
-
+                var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
                 var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
                 var isEvent = eventType == "Event";
@@ -227,22 +213,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 return;
             }
 
-            // Determine the correct map
-            TeraRaidMapParent selectedMap;
-
-            if (IsBlueberry)
-            {
-                selectedMap = TeraRaidMapParent.Blueberry; 
-            }
-            else if (IsKitakami)
-            {
-                selectedMap = TeraRaidMapParent.Kitakami;
-            }
-            else
-            {
-                selectedMap = TeraRaidMapParent.Paldea;
-            }
-
+            var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
             var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
             var rewardsToShow = settings.EmbedToggles.RewardsToShow;
             var (pk, raidEmbed) = RaidInfoCommand(seed, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow);
@@ -354,21 +325,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 await ReplyAsync("Currently only Story Progress Level 6 (6* Unlocked) is allowed due to Active Event Settings.").ConfigureAwait(false);
                 return;
             }
-            // Determine the correct map
-            TeraRaidMapParent selectedMap;
-
-            if (IsBlueberry)
-            {
-                selectedMap = TeraRaidMapParent.Blueberry;
-            }
-            else if (IsKitakami)
-            {
-                selectedMap = TeraRaidMapParent.Kitakami;
-            }
-            else
-            {
-                selectedMap = TeraRaidMapParent.Paldea;
-            }
+            var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
             var rewardsToShow = settings.EmbedToggles.RewardsToShow;
             var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
             var (pk, raidEmbed) = RaidInfoCommand(seed, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow);
