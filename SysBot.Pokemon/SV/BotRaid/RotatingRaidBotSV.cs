@@ -531,7 +531,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00} in Paldea map");
+                    Log($"Raid Den Located at {i + 1:00} in Paldea.");
                     return;
                 }
             }
@@ -543,7 +543,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00} in Kitakami map");
+                    Log($"Raid Den Located at {i + 1:00} in Kitakami.");
                     IsKitakami = true;
                     return;
                 }
@@ -557,7 +557,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i - 1;  // Adjusting the index by subtracting one
-                    Log($"Raid Den Located at {i} in Blueberry map");
+                    Log($"Raid Den Located at {i} in Blueberry.");
                     IsBlueberry = true;
                     return;
                 }
@@ -2725,7 +2725,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, (int)RaidBlock.SIZE_BLUEBERRY, token).ConfigureAwait(false);
             }
 
-            if (init || (SeedIndexToReplace >= 0 && SeedIndexToReplace <= 69))
+            if (init || (!IsKitakami && !IsBlueberry))
             {
                 (delivery, enc) = container.ReadAllRaids(dataP, StoryProgress, EventProgress, 0, TeraRaidMapParent.Paldea);
                 Log("Reading Paldea raids...");
@@ -2799,7 +2799,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             container.ClearEncounters();
             container.ClearRewards();
 
-            if (init || (SeedIndexToReplace >= 70 && SeedIndexToReplace <= 94))
+            if (init || IsKitakami)
             {
                 (delivery, enc) = container.ReadAllRaids(dataK, StoryProgress, EventProgress, 0, TeraRaidMapParent.Kitakami);
                 Log("Reading Kitakami raids...");
@@ -2821,7 +2821,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             container.SetEncounters(allEncounters);
             container.SetRewards(allRewards);
 
-            if (init || SeedIndexToReplace >= 94)
+            if (init || IsBlueberry)
             {
                 (delivery, enc) = container.ReadAllRaids(dataB, StoryProgress, EventProgress, 0, TeraRaidMapParent.Blueberry);
                 Log("Reading Blueberry raids...");
