@@ -2881,9 +2881,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allEncounters = container.Encounters;
             var allRewards = container.Rewards;
 
-            int totalRaids = allRaids.Count;
-            Log($"ProcessAllRaids: Looking through {totalRaids} raids.");
-
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
 
             for (int i = 0; i < allRaids.Count; i++)
