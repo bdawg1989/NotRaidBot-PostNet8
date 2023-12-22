@@ -6,7 +6,6 @@ using SysBot.Base;
 using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -18,7 +17,6 @@ using System.Threading.Tasks;
 using static SysBot.Base.SwitchButton;
 using static SysBot.Pokemon.RotatingRaidSettingsSV;
 using static SysBot.Pokemon.SV.BotRaid.Blocks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SysBot.Pokemon.SV.BotRaid
 {
@@ -549,9 +547,9 @@ namespace SysBot.Pokemon.SV.BotRaid
                     return;
                 }
             }
-
+            
             // Adding support for Blueberry Raids
-            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0x19B0, token).ConfigureAwait(false);
+            data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0xA00, token).ConfigureAwait(false);
             for (int i = 94; i < 118; i++)  // Blueberry Raids
             {
                 var seed = BitConverter.ToUInt32(data.AsSpan((i - 94) * 0x20, 4));
@@ -563,7 +561,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                     return;
                 }
             }
-            Log($"Index not located.");
+            Log($"Index not located."); 
         }
 
 
@@ -976,7 +974,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                     throw new InvalidOperationException("Unknown action type!");
             }
         }
-
+        
         private async Task CountRaids(List<(ulong, RaidMyStatus)>? trainers, CancellationToken token)
         {
             if (trainers is not null)
@@ -1047,7 +1045,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 Log("No trainers available to check win/loss status.");
             }
-        }
+        } 
         private async Task OverrideTodaySeed(CancellationToken token)
         {
             Log("Attempting to override Today Seed...");
@@ -2676,14 +2674,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             allEncounters.AddRange(paldeaEncounters);
             allRewards.AddRange(paldeaRewards);
 
-            // Read and process Blueberry Raids
-            var dataB = await ReadBlueberryRaids(token);
-            Log("Reading Blueberry Raids...");
-            var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
-            allRaids.AddRange(blueberryRaids);
-            allEncounters.AddRange(blueberryEncounters);
-            allRewards.AddRange(blueberryRewards);
-
             // Read and process Kitakami Raids
             var dataK = await ReadKitakamiRaids(token);
             Log("Reading Kitakami Raids...");
@@ -2692,13 +2682,21 @@ namespace SysBot.Pokemon.SV.BotRaid
             allEncounters.AddRange(kitakamiEncounters);
             allRewards.AddRange(kitakamiRewards);
 
+            // Read and process Blueberry Raids
+            var dataB = await ReadBlueberryRaids(token);
+            Log("Reading Blueberry Raids...");
+            var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
+            allRaids.AddRange(blueberryRaids);
+            allEncounters.AddRange(blueberryEncounters);
+            allRewards.AddRange(blueberryRewards);
+
             // Set combined data to container and process all raids
             container.SetRaids(allRaids);
             container.SetEncounters(allEncounters);
             container.SetRewards(allRewards);
             await ProcessAllRaids(token);
 
-            await LocateSeedIndexOnReadRaids(token);
+            await LocateSeedIndexOnReadRaids(allRaids, token);
         }
 
         private async Task<(List<Raid>, List<ITeraRaid>, List<List<(int, int, int)>>)> ProcessRaids(byte[] data, TeraRaidMapParent mapType, CancellationToken token)
@@ -2714,11 +2712,17 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Failed to find encounters for {enc} Event raid in {mapType}.");
             }
 
+            int totalRaidsProcessed = tempContainer.Raids.Count;
+
             if (delivery > 0)
             {
                 Log($"Invalid delivery group ID for {delivery} raid(s) in {mapType}. Try deleting the \"cache\" folder.");
+                if (mapType == TeraRaidMapParent.Paldea)
+                {
+                    totalRaidsProcessed += delivery; // Add the number of invalid delivery group IDs to total raids processed
+                }
             }
-            Log($"Processed {tempContainer.Raids.Count} raids in {mapType}.");
+            Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
 
             // Additional logic for Paldea raids
             if (mapType == TeraRaidMapParent.Paldea)
@@ -2786,7 +2790,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             if (RaidBlockPointerK == 0)
                 RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
 
-            if (RaidBlockPointerB == 0)
                 RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
         }
 
@@ -2827,25 +2830,21 @@ namespace SysBot.Pokemon.SV.BotRaid
             return dataB;
         }
 
-        private async Task LocateSeedIndexOnReadRaids(CancellationToken token)
+        private async Task LocateSeedIndexOnReadRaids(List<Raid> allRaids, CancellationToken token)
         {
             for (int rc = 0; rc < Settings.ActiveRaids.Count; rc++)
             {
                 uint targetSeed = uint.Parse(Settings.ActiveRaids[rc].Seed, NumberStyles.AllowHexSpecifier);
 
-                for (int i = 0; i < container.Raids.Count; i++)
+                for (int i = 0; i < allRaids.Count; i++)
                 {
-                    if (container.Raids[i].Seed == targetSeed)
+                    if (allRaids[i].Seed == targetSeed)
                     {
                         // Skip updating for Might or Distribution raids
                         if (Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Might || Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Distribution)
                             continue;
 
                         RotationCount = rc;
-
-                        // No need to adjust index based on raid region anymore
-                        SeedIndexToReplace = i;
-                        Log($"Raid Den Located at {i + 1:00} in the map");
                         Log($"Rotation Count set to {RotationCount}");
                         return;
                     }
@@ -2881,7 +2880,9 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allRaids = container.Raids;
             var allEncounters = container.Encounters;
             var allRewards = container.Rewards;
-            Log($"ProcessAllRaids: Looking through {container.Raids.Count} raids.");
+
+            int totalRaids = allRaids.Count;
+            Log($"ProcessAllRaids: Looking through {totalRaids} raids.");
 
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
 
