@@ -324,8 +324,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 {
                     TodaySeed = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 8, token).ConfigureAwait(false), 0);
                     Log($"Today Seed: {TodaySeed:X8}");
-                    Log($"Preparing to store index for {Settings.ActiveRaids[RotationCount].Species}");
-                    await ReadRaids(token).ConfigureAwait(false);
                 }
 
                 Log($"Preparing parameter for {Settings.ActiveRaids[RotationCount].Species}");
