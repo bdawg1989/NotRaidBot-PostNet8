@@ -1760,7 +1760,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             var data = await SwitchConnection.PointerPeek(6, Offsets.TeraRaidCodePointer, token).ConfigureAwait(false);
             TeraRaidCode = Encoding.ASCII.GetString(data).ToLower(); // Convert to lowercase for easier reading
-            Log($"Raid Code: {TeraRaidCode}");
             return $"\n{TeraRaidCode}\n";
         }
 
@@ -2120,6 +2119,8 @@ namespace SysBot.Pokemon.SV.BotRaid
             var form = string.Empty;
 
             Log($"Rotation Count: {RotationCount} | Species is {Settings.ActiveRaids[RotationCount].Species}");
+            if(!disband && !upnext && !raidstart)
+                Log($"Raid Code is: {code}");
             PK9 pk = new()
             {
                 Species = (ushort)Settings.ActiveRaids[RotationCount].Species,
