@@ -972,7 +972,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                     throw new InvalidOperationException("Unknown action type!");
             }
         }
-        
+
         private async Task CountRaids(List<(ulong, RaidMyStatus)>? trainers, CancellationToken token)
         {
             if (trainers is not null)
@@ -980,52 +980,24 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log("Back in the overworld, checking if we won or lost.");
 
                 uint activeSeed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
-
                 bool seedFound = false;
 
-                // Check only the relevant region based on IsBlueberry, IsKitakami, and SeedIndexToReplace
-                if (IsBlueberry && SeedIndexToReplace >= 94)
-                {
-                    // Check Blueberry Raids
-                    var dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, 23 * 32, token).ConfigureAwait(false);
-                    for (int i = 0; i < 23; i++)
-                    {
-                        var seed = BitConverter.ToUInt32(dataB.AsSpan(i * 32, 4));
-                        if (seed == activeSeed)
-                        {
-                            seedFound = true;
-                            break;
-                        }
-                    }
-                }
-                else if (IsKitakami && SeedIndexToReplace >= 69 && SeedIndexToReplace < 94)
-                {
-                    // Check Kitakami Raids
-                    var dataK = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK, 25 * 32, token).ConfigureAwait(false);
-                    for (int i = 0; i < 25; i++)
-                    {
-                        var seed = BitConverter.ToUInt32(dataK.AsSpan(i * 32, 4));
-                        if (seed == activeSeed)
-                        {
-                            seedFound = true;
-                            break;
-                        }
-                    }
-                }
-                else if (!IsBlueberry && !IsKitakami && SeedIndexToReplace < 69)
-                {
-                    // Check Paldea Raids
-                    var dataP = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
-                    for (int i = 0; i < 69; i++)
-                    {
-                        var seed = BitConverter.ToUInt32(dataP.AsSpan(i * 32, 4));
-                        if (seed == activeSeed)
-                        {
-                            seedFound = true;
-                            break;
-                        }
-                    }
-                }
+                // Read all raids from each region
+                var dataP = await ReadPaldeaRaids(token);
+                var dataK = await ReadKitakamiRaids(token);
+                var dataB = await ReadBlueberryRaids(token);
+
+                // Combine all raid seeds into a single list
+                var allSeeds = new List<uint>();
+                for (int i = 0; i < dataP.Length; i += 32)
+                    allSeeds.Add(BitConverter.ToUInt32(dataP, i));
+                for (int i = 0; i < dataK.Length; i += 32)
+                    allSeeds.Add(BitConverter.ToUInt32(dataK, i));
+                for (int i = 0; i < dataB.Length; i += 32)
+                    allSeeds.Add(BitConverter.ToUInt32(dataB, i));
+
+                // Search for the active seed in the combined list
+                seedFound = allSeeds.Contains(activeSeed);
 
                 // Determine win or loss based on seed presence
                 if (seedFound)
@@ -1043,7 +1015,8 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 Log("No trainers available to check win/loss status.");
             }
-        } 
+        }
+
         private async Task OverrideTodaySeed(CancellationToken token)
         {
             Log("Attempting to override Today Seed...");
