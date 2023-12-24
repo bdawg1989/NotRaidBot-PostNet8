@@ -2808,20 +2808,28 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 uint targetSeed = uint.Parse(Settings.ActiveRaids[rc].Seed, NumberStyles.AllowHexSpecifier);
 
-                for (int i = 0; i < allRaids.Count; i++)
-                {
-                    if (allRaids[i].Seed == targetSeed)
-                    {
-                        // Skip updating for Might or Distribution raids
-                        if (Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Might || Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Distribution)
-                            continue;
+                // Combine all raid seeds into a single list
+                var allSeeds = allRaids.Select(raid => raid.Seed).ToList();
 
-                        RotationCount = rc;
-                        Log($"Rotation Count set to {RotationCount}");
-                        return;
-                    }
+                // Find the index of the target seed
+                int seedIndex = allSeeds.IndexOf(targetSeed);
+
+                if (seedIndex != -1)
+                {
+                    // Skip updating for Might or Distribution raids
+                    if (Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Might || Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Distribution)
+                        continue;
+
+                    RotationCount = rc;
+                    int seedIndexToReplace = seedIndex; // The index where the seed is found
+                    Log($"Rotation Count set to {RotationCount}");
+                    Log($"Index Located at {seedIndexToReplace}");
+                    return;
                 }
             }
+
+            // Handle the case where the seed is not found
+            Log("Target seed not found in the Overworld.");
         }
 
         private List<int> GetPossibleGroups(RaidContainer container)
