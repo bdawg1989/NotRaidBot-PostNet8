@@ -562,7 +562,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log($"Index not located."); 
         }
 
-
         private async Task CompleteRaid(CancellationToken token)
         {
             var trainers = new List<(ulong, RaidMyStatus)>();
@@ -863,6 +862,8 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (LostRaid >= Settings.LobbyOptions.SkipRaidLimit)
                 {
                     Log($"We had {Settings.LobbyOptions.SkipRaidLimit} lost/empty raids.. Moving on!");
+                    var seed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
+                    RemoveRaidFromActiveList(seed);
                     await SanitizeRotationCount(token).ConfigureAwait(false);
                     await EnqueueEmbed(null, "", false, false, true, false, token).ConfigureAwait(false);
                     ready = true;
@@ -885,6 +886,8 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Update RotationCount after locating seed index
             if (Settings.ActiveRaids.Count > 1)
             {
+                var seed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
+                RemoveRaidFromActiveList(seed);
                 await SanitizeRotationCount(token).ConfigureAwait(false);
             }
             await EnqueueEmbed(null, "", false, false, true, false, token).ConfigureAwait(false);
@@ -1028,7 +1031,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             var crystalType = Settings.ActiveRaids[RotationCount].CrystalType;
             var seed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
-
             if (crystalType == TeraCrystalType.Might || crystalType == TeraCrystalType.Distribution)
             {
                 Log(crystalType == TeraCrystalType.Might ? "Preparing 7 Star Event Raid..." : "Preparing Distribution Raid...");
@@ -1093,6 +1095,22 @@ namespace SysBot.Pokemon.SV.BotRaid
                 var currcrystal = await SwitchConnection.PointerPeek(1, ptr2, token).ConfigureAwait(false);
                 if (currcrystal != crystal)
                     await SwitchConnection.PointerPoke(crystal, ptr2, token).ConfigureAwait(false);
+            }
+        }
+
+        private void RemoveRaidFromActiveList(uint seed)
+        {
+            // Find the raid with the matching seed and added by RA command
+            var raidToRemove = Settings.ActiveRaids.FirstOrDefault(r =>
+                uint.Parse(r.Seed, NumberStyles.AllowHexSpecifier) == seed && r.AddedByRACommand);
+
+            if (raidToRemove != null) 
+            {
+                Log($"Removing Seed: {raidToRemove.Seed} - {raidToRemove.Species} from ActiveRaids list.");
+                Settings.ActiveRaids.Remove(raidToRemove);
+            }
+            else
+            {
             }
         }
 
@@ -1405,34 +1423,20 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Normalize RotationCount to be within the range of ActiveRaids
             RotationCount = (RotationCount >= Settings.ActiveRaids.Count) ? 0 : RotationCount;
 
-            // Process RA command raids
-            if (Settings.ActiveRaids[RotationCount].AddedByRACommand)
-            {
-                bool isMysteryRaid = Settings.ActiveRaids[RotationCount].Title.Contains("Mystery Shiny Raid");
-                bool isUserRequestedRaid = !isMysteryRaid && Settings.ActiveRaids[RotationCount].Title.Contains("'s Requested Raid");
-
-                if (isUserRequestedRaid || isMysteryRaid)
-                {
-                    Log($"Raid for {Settings.ActiveRaids[RotationCount].Species} was added via RA command and will be removed from the rotation list.");
-                    Settings.ActiveRaids.RemoveAt(RotationCount);
-                    RotationCount = (RotationCount >= Settings.ActiveRaids.Count) ? 0 : RotationCount;
-                }
-                else if (!firstRun)
-                {
-                    RotationCount = (RotationCount + 1) % Settings.ActiveRaids.Count;
-                }
-            }
-            else if (!firstRun)
+            // Increment RotationCount if not the first run
+            if (!firstRun)
             {
                 RotationCount = (RotationCount + 1) % Settings.ActiveRaids.Count;
             }
 
+            // Reset RotationCount and firstRun flag if it's the first run
             if (firstRun)
             {
                 RotationCount = 0;
                 firstRun = false;
             }
 
+            // Process random rotation if enabled
             if (Settings.RaidSettings.RandomRotation)
             {
                 ProcessRandomRotation();
@@ -2596,7 +2600,8 @@ namespace SysBot.Pokemon.SV.BotRaid
         private async Task SkipRaidOnLosses(CancellationToken token)
         {
             Log($"We had {Settings.LobbyOptions.SkipRaidLimit} lost/empty raids.. Moving on!");
-
+            var seed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
+            RemoveRaidFromActiveList(seed);
             await SanitizeRotationCount(token).ConfigureAwait(false);
             // Prepare and send an embed to inform users
             await EnqueueEmbed(null, "", false, false, true, false, token).ConfigureAwait(false);
