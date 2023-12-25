@@ -498,7 +498,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             var userId = Context.User.Id;
             int currentPosition = RotationCount;
 
-            // Find the index of the user's request in the queue
             var userRequestIndex = Hub.Config.RotatingRaidSV.ActiveRaids.FindIndex(r =>
                 r.RequestedByUserID == userId && !r.Title.Contains("Mystery Shiny Raid"));
 
@@ -513,7 +512,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             else
             {
                 int raidsBeforeUser;
-                // Handle Random Rotation differently
                 if (Hub.Config.RotatingRaidSV.RaidSettings.RandomRotation)
                 {
                     raidsBeforeUser = CalculateEffectiveQueuePosition(userId, currentPosition);
@@ -531,9 +529,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 }
                 else
                 {
-                    // Calculate ETA
-                    int etaMinutes = raidsBeforeUser * 6;  // Assuming each raid takes 6 minutes
-
+                    int etaMinutes = raidsBeforeUser * 6;
                     embed.Title = "Queue Status";
                     embed.Color = Color.Orange;
                     embed.Description = $"{Context.User.Mention}, here's the status of your raid request:";
@@ -541,6 +537,8 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                     embed.AddField("Estimated Time", $"{etaMinutes} minutes", true);
                 }
             }
+
+            embed.AddField("Users in Queue", BuildQueueList(currentPosition));
 
             await Context.Message.DeleteAsync().ConfigureAwait(false);
             await ReplyAsync(embed: embed.Build()).ConfigureAwait(false);
@@ -554,7 +552,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             {
                 var raid = Hub.Config.RotatingRaidSV.ActiveRaids[i];
 
-                // Skip "Mystery Shiny Raid" titles
                 if (raid.Title.Contains("Mystery Shiny Raid"))
                 {
                     continue;
@@ -562,19 +559,35 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
 
                 if (raid.RequestedByUserID == userId)
                 {
-                    break; // Found the user's request
+                    break;
                 }
 
                 effectivePosition++;
 
-                // Adjust for priority raids added by RA command
                 if (raid.AddedByRACommand)
                 {
-                    effectivePosition--;  // RA-added raids are prioritized, so decrement the effective position
+                    effectivePosition--;
                 }
             }
 
             return effectivePosition;
+        }
+
+        private string BuildQueueList(int currentPosition)
+        {
+            StringBuilder queueList = new StringBuilder();
+
+            for (int i = 0; i < Hub.Config.RotatingRaidSV.ActiveRaids.Count; i++)
+            {
+                var raid = Hub.Config.RotatingRaidSV.ActiveRaids[i];
+                var user = raid.User;
+                if (user != null && !raid.Title.Contains("Mystery Shiny Raid"))
+                {
+                    queueList.AppendLine($"{i + 1}: {user.Username} ({user.Id})");
+                }
+            }
+
+            return queueList.Length > 0 ? queueList.ToString() : "No users in queue.";
         }
 
         [Command("raidQueueClear")]
