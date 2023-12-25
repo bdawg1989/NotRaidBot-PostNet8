@@ -499,7 +499,8 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             int currentPosition = RotationCount;
 
             // Find the index of the user's request in the queue
-            var userRequestIndex = Hub.Config.RotatingRaidSV.ActiveRaids.FindIndex(r => r.RequestedByUserID == userId);
+            var userRequestIndex = Hub.Config.RotatingRaidSV.ActiveRaids.FindIndex(r =>
+                r.RequestedByUserID == userId && !r.Title.Contains("Mystery Shiny Raid"));
 
             EmbedBuilder embed = new EmbedBuilder();
 
@@ -549,25 +550,30 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
         {
             int effectivePosition = 0;
 
-            // Count how many raids are before the user's request, considering priority and randomness
             for (int i = currentPosition; i < Hub.Config.RotatingRaidSV.ActiveRaids.Count; i++)
             {
-                if (Hub.Config.RotatingRaidSV.ActiveRaids[i].RequestedByUserID != userId)
+                var raid = Hub.Config.RotatingRaidSV.ActiveRaids[i];
+
+                // Skip "Mystery Shiny Raid" titles
+                if (raid.Title.Contains("Mystery Shiny Raid"))
                 {
-                    effectivePosition++;
-                }
-                else
-                {
-                    // Found the user's request
-                    break;
+                    continue;
                 }
 
-                // Check for priority raids added by RA command
-                if (Hub.Config.RotatingRaidSV.ActiveRaids[i].AddedByRACommand)
+                if (raid.RequestedByUserID == userId)
+                {
+                    break; // Found the user's request
+                }
+
+                effectivePosition++;
+
+                // Adjust for priority raids added by RA command
+                if (raid.AddedByRACommand)
                 {
                     effectivePosition--;  // RA-added raids are prioritized, so decrement the effective position
                 }
             }
+
             return effectivePosition;
         }
 
@@ -588,7 +594,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             }
 
             // Prevent canceling if the raid is next in line
-            if (raidIndex == RotationCount + 1)
+            if (raidIndex == RotationCount)
             {
                 await ReplyAsync("Your raid request is up next and cannot be canceled at this time.").ConfigureAwait(false);
                 return;
@@ -597,6 +603,13 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             // Proceed with removal if it's not next in line
             var raid = list[raidIndex];
             list.RemoveAt(raidIndex);
+
+            // Normalize RotationCount if necessary
+            if (RotationCount >= list.Count)
+            {
+                RotationCount = 0;
+            }
+
             await Context.Message.DeleteAsync().ConfigureAwait(false);
             var msg = $"Cleared your Raid from the queue.";
             await ReplyAsync(msg).ConfigureAwait(false);
