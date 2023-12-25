@@ -528,7 +528,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00} in Paldea.");
+                    Log($"Raid Den Located at {i} in Paldea.");
                     return;
                 }
             }
@@ -540,7 +540,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00} in Kitakami.");
+                    Log($"Raid Den Located at {i} in Kitakami.");
                     IsKitakami = true;
                     return;
                 }
