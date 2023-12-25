@@ -879,8 +879,8 @@ namespace SysBot.Pokemon.SV.BotRaid
             while (!await IsOnOverworld(OverworldOffset, token).ConfigureAwait(false))
                 await Click(A, 1_000, token).ConfigureAwait(false);
 
-            await CountRaids(trainers, token).ConfigureAwait(false);
             await LocateSeedIndex(token).ConfigureAwait(false);
+            await CountRaids(trainers, token).ConfigureAwait(false);
 
             // Update RotationCount after locating seed index
             if (Settings.ActiveRaids.Count > 1)
@@ -973,42 +973,32 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
         }
 
+        private async Task<uint> ReadAreaId(int raidIndex, CancellationToken token)
+        {
+            List<long> pointer = CalculateDirectPointer(raidIndex);
+            int areaIdOffset = 20; 
+
+            return await ReadValue("Area ID", 4, AdjustPointer(pointer, areaIdOffset), token);
+        }
+
         private async Task CountRaids(List<(ulong, RaidMyStatus)>? trainers, CancellationToken token)
         {
             if (trainers is not null)
             {
                 Log("Back in the overworld, checking if we won or lost.");
 
-                uint activeSeed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
-                bool seedFound = false;
+                int currentRaidIndex = SeedIndexToReplace;
+                uint areaId = await ReadAreaId(currentRaidIndex, token);
 
-                // Read all raids from each region
-                var dataP = await ReadPaldeaRaids(token);
-                var dataK = await ReadKitakamiRaids(token);
-                var dataB = await ReadBlueberryRaids(token);
-
-                // Combine all raid seeds into a single list
-                var allSeeds = new List<uint>();
-                for (int i = 0; i < dataP.Length; i += 32)
-                    allSeeds.Add(BitConverter.ToUInt32(dataP, i));
-                for (int i = 0; i < dataK.Length; i += 32)
-                    allSeeds.Add(BitConverter.ToUInt32(dataK, i));
-                for (int i = 0; i < dataB.Length; i += 32)
-                    allSeeds.Add(BitConverter.ToUInt32(dataB, i));
-
-                // Search for the active seed in the combined list
-                seedFound = allSeeds.Contains(activeSeed);
-
-                // Determine win or loss based on seed presence
-                if (seedFound)
-                {
-                    Log("Dang, we lost the raid.");
-                    LossCount++;
-                }
-                else
+                if (areaId == 0)
                 {
                     Log("Yay! We defeated the raid!");
                     WinCount++;
+                }
+                else
+                {
+                    Log("Dang, we lost the raid.");
+                    LossCount++;
                 }
             }
             else
@@ -1733,7 +1723,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             var data = await SwitchConnection.PointerPeek(6, Offsets.TeraRaidCodePointer, token).ConfigureAwait(false);
             TeraRaidCode = Encoding.ASCII.GetString(data).ToLower(); // Convert to lowercase for easier reading
-            return $"\n{TeraRaidCode}\n";
+            return $"{TeraRaidCode}";
         }
 
         private async Task<bool> CheckIfTrainerBanned(RaidMyStatus trainer, ulong nid, int player, CancellationToken token)
@@ -2821,7 +2811,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                         continue;
 
                     RotationCount = rc;
-                    int seedIndexToReplace = seedIndex; // The index where the seed is found
+                    int seedIndexToReplace = seedIndex + 1; // The index where the seed is found
                     Log($"Rotation Count set to {RotationCount}");
                     Log($"Index Located at {seedIndexToReplace}");
                     return;
