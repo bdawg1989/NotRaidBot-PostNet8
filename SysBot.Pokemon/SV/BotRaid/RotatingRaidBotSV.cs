@@ -540,7 +540,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i} in Kitakami.");
+                    Log($"Raid Den Located at {i + 1:00} in Kitakami.");
                     IsKitakami = true;
                     return;
                 }
@@ -2816,9 +2816,8 @@ namespace SysBot.Pokemon.SV.BotRaid
                         continue;
 
                     RotationCount = rc;
-                    int seedIndexToReplace = seedIndex + 1; // The index where the seed is found
+
                     Log($"Rotation Count set to {RotationCount}");
-                    Log($"Index Located at {seedIndexToReplace}");
                     return;
                 }
             }
@@ -3039,47 +3038,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
             Array.Reverse(bytes);
             return bytes;
-        }
-
-        private async Task<bool> PrepareForDayroll(CancellationToken token)
-        {
-            // Make sure we're connected.
-            while (!await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
-            {
-                Log("Connecting...");
-                await RecoverToOverworld(token).ConfigureAwait(false);
-                if (!await ConnectToOnline(Hub.Config, token).ConfigureAwait(false))
-                    return false;
-            }
-            return true;
-        }
-
-        public async Task<bool> CheckForLobby(CancellationToken token)
-        {
-            var x = 0;
-            Log("Connecting to lobby...");
-            while (!await IsConnectedToLobby(token).ConfigureAwait(false))
-            {
-                await Click(A, 1_000, token).ConfigureAwait(false);
-                x++;
-                if (x == 15)
-                {
-                    Log("No den here! Rolling again.");
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private async Task<bool> SaveGame(PokeRaidHubConfig config, CancellationToken token)
-        {
-
-            await Click(X, 3_000, token).ConfigureAwait(false);
-            await Click(R, 3_000 + config.Timings.ExtraTimeConnectOnline, token).ConfigureAwait(false);
-            await Click(A, 3_000, token).ConfigureAwait(false);
-            await Click(A, 1_000, token).ConfigureAwait(false);
-            await Click(B, 1_000, token).ConfigureAwait(false);
-            return true;
         }
 
         public class RaidEmbedInfo
