@@ -73,8 +73,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         private bool originalIdsSet = false;
         private uint areaIdIndex0;
         private uint denIdIndex0;
-        private uint areaIdIndex1;
-        private uint denIdIndex1;
         private bool indicesInitialized = false;
 
         public override async Task MainLoop(CancellationToken token)
@@ -2633,30 +2631,67 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allEncounters = new List<ITeraRaid>();
             var allRewards = new List<List<(int, int, int)>>();
 
-            // Read and process Paldea Raids
-            var dataP = await ReadPaldeaRaids(token);
-            Log("Reading Paldea Raids...");
-            var (paldeaRaids, paldeaEncounters, paldeaRewards) = await ProcessRaids(dataP, TeraRaidMapParent.Paldea, token);
-            allRaids.AddRange(paldeaRaids);
-            allEncounters.AddRange(paldeaEncounters);
-            allRewards.AddRange(paldeaRewards);
+            if (firstRun)
+            {
+                // Read and process Paldea Raids
+                var dataP = await ReadPaldeaRaids(token);
+                Log("Reading Paldea Raids...");
+                var (paldeaRaids, paldeaEncounters, paldeaRewards) = await ProcessRaids(dataP, TeraRaidMapParent.Paldea, token);
+                allRaids.AddRange(paldeaRaids);
+                allEncounters.AddRange(paldeaEncounters);
+                allRewards.AddRange(paldeaRewards);
 
-            // Read and process Kitakami Raids
-            var dataK = await ReadKitakamiRaids(token);
-            Log("Reading Kitakami Raids...");
-            var (kitakamiRaids, kitakamiEncounters, kitakamiRewards) = await ProcessRaids(dataK, TeraRaidMapParent.Kitakami, token);
-            allRaids.AddRange(kitakamiRaids);
-            allEncounters.AddRange(kitakamiEncounters);
-            allRewards.AddRange(kitakamiRewards);
+                // Read and process Kitakami Raids
+                var dataK = await ReadKitakamiRaids(token);
+                Log("Reading Kitakami Raids...");
+                var (kitakamiRaids, kitakamiEncounters, kitakamiRewards) = await ProcessRaids(dataK, TeraRaidMapParent.Kitakami, token);
+                allRaids.AddRange(kitakamiRaids);
+                allEncounters.AddRange(kitakamiEncounters);
+                allRewards.AddRange(kitakamiRewards);
 
-            // Read and process Blueberry Raids
-            var dataB = await ReadBlueberryRaids(token);
-            Log("Reading Blueberry Raids...");
-            var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
-            allRaids.AddRange(blueberryRaids);
-            allEncounters.AddRange(blueberryEncounters);
-            allRewards.AddRange(blueberryRewards);
+                // Read and process Blueberry Raids
+                var dataB = await ReadBlueberryRaids(token);
+                Log("Reading Blueberry Raids...");
+                var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
+                allRaids.AddRange(blueberryRaids);
+                allEncounters.AddRange(blueberryEncounters);
+                allRewards.AddRange(blueberryRewards);
+            }
+            else
+            {
+                if (IsKitakami)
+                {
+                    // Read and process Kitakami Raids
+                    var dataK = await ReadKitakamiRaids(token);
+                    Log("Reading Kitakami Raids...");
+                    var (kitakamiRaids, kitakamiEncounters, kitakamiRewards) = await ProcessRaids(dataK, TeraRaidMapParent.Kitakami, token);
+                    allRaids.AddRange(kitakamiRaids);
+                    allEncounters.AddRange(kitakamiEncounters);
+                    allRewards.AddRange(kitakamiRewards);
+                }
 
+                if (IsBlueberry)
+                {
+                    // Read and process Blueberry Raids
+                    var dataB = await ReadBlueberryRaids(token);
+                    Log("Reading Blueberry Raids...");
+                    var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
+                    allRaids.AddRange(blueberryRaids);
+                    allEncounters.AddRange(blueberryEncounters);
+                    allRewards.AddRange(blueberryRewards);
+                }
+
+                if (!IsKitakami && !IsBlueberry)
+                {
+                    // Read and process Paldea Raids
+                    var dataP = await ReadPaldeaRaids(token);
+                    Log("Reading Paldea Raids...");
+                    var (paldeaRaids, paldeaEncounters, paldeaRewards) = await ProcessRaids(dataP, TeraRaidMapParent.Paldea, token);
+                    allRaids.AddRange(paldeaRaids);
+                    allEncounters.AddRange(paldeaEncounters);
+                    allRewards.AddRange(paldeaRewards);
+                }
+            }
             // Set combined data to container and process all raids
             container.SetRaids(allRaids);
             container.SetEncounters(allEncounters);
