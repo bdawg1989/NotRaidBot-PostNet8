@@ -1419,7 +1419,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             // Normalize RotationCount to be within the range of ActiveRaids
-            RotationCount = (RotationCount >= Settings.ActiveRaids.Count) ? 0 : RotationCount;
+            RotationCount %= Settings.ActiveRaids.Count;
 
             // Increment RotationCount if not the first run
             if (!firstRun)
@@ -1442,37 +1442,28 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             // Find next priority raid
-            RotationCount = FindNextPriorityRaidIndex(RotationCount, Settings.ActiveRaids);
+            RotationCount = FindNextRaidIndex(RotationCount, Settings.ActiveRaids);
             Log($"Next raid in the list: {Settings.ActiveRaids[RotationCount].Species}.");
         }
 
-        private int FindNextPriorityRaidIndex(int currentRotationCount, List<RotatingRaidParameters> raids)
+        private int FindNextRaidIndex(int currentRotationCount, List<RotatingRaidParameters> raids)
         {
             int count = raids.Count;
-
-            // First, check for user-requested RA command raids that are not Mystery Shiny Raids
             for (int i = 0; i < count; i++)
             {
                 int index = (currentRotationCount + i) % count;
                 RotatingRaidParameters raid = raids[index];
 
+                // Check for priority raids first
                 if (raid.AddedByRACommand && !raid.Title.Contains("Mystery Shiny Raid"))
                 {
                     return index;
                 }
-            }
-            // If no user-requested raids are found, check for Mystery Shiny Raids if enabled
-            if (Settings.RaidSettings.MysteryRaids)
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    int index = (currentRotationCount + i) % count;
-                    RotatingRaidParameters raid = raids[index];
 
-                    if (raid.Title.Contains("Mystery Shiny Raid"))
-                    {
-                        return index;
-                    }
+                // Check for Mystery Shiny Raids if enabled
+                if (Settings.RaidSettings.MysteryRaids && raid.Title.Contains("Mystery Shiny Raid"))
+                {
+                    return index;
                 }
             }
 
@@ -2786,14 +2777,30 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task InitializeRaidBlockPointers(CancellationToken token)
         {
-            if (RaidBlockPointerP == 0)
+            if (firstRun)
+            {
+                // Initialize all pointers when firstRun is true
                 RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
-
-            if (RaidBlockPointerK == 0)
                 RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
-
                 RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
+            }
+            else if (IsBlueberry)
+            {
+                // Initialize only Blueberry pointer
+                RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
+            }
+            else if (IsKitakami)
+            {
+                // Initialize only Kitakami pointer
+                RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
+            }
+            else
+            {
+                // Initialize only the default pointer
+                RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
+            }
         }
+
 
         private async Task<string> DetermineGame(CancellationToken token)
         {
