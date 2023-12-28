@@ -1360,10 +1360,27 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private List<long> CalculateDirectPointer(int index)
         {
-            return new(Offsets.RaidBlockPointerP)
+            if (IsKitakami)
             {
-                [3] = 0x40 + index * 0x20
-            };
+                return new List<long>(Offsets.RaidBlockPointerK)
+                {
+                    [3] = 0xCE8 + ((index - 69) * 0x20)
+                };
+            }
+            else if (IsBlueberry)
+            {
+                return new List<long>(Offsets.RaidBlockPointerB)
+                {
+                    [3] = 0x1968 + ((index - 93) * 0x20)
+                };
+            }
+            else
+            {
+                return new List<long>(Offsets.RaidBlockPointerP)
+                {
+                    [3] = 0x40 + index * 0x20
+                };
+            }
         }
 
         private List<long> DeterminePointer(int index)
@@ -2811,9 +2828,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                         continue;
 
                     RotationCount = rc;
-                    int seedIndexToReplace = seedIndex + 1; // The index where the seed is found
                     Log($"Rotation Count set to {RotationCount}");
-                    Log($"Index Located at {seedIndexToReplace}");
                     return;
                 }
             }

@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.Commands;
+using Discord.WebSocket;
 using PKHeX.Core;
 using SysBot.Base;
 using SysBot.Pokemon.Discord.Helpers;
@@ -146,6 +147,75 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             await ReplyAsync("Done.").ConfigureAwait(false);
         }
 
+        [Command("limitrequests")]
+        [Alias("lr")]
+        [Summary("Sets the limit on the number of requests a user can make.")]
+        [RequireSudo]
+        public async Task SetLimitRequestsAsync(
+    [Summary("The new limit for requests. Set to 0 to disable.")] int newLimit)
+        {
+            var settings = Hub.Config.RotatingRaidSV.RaidSettings;
+            settings.LimitRequests = newLimit;
+
+            await ReplyAsync($"LimitRequests updated to {newLimit}.").ConfigureAwait(false);
+        }
+
+        [Command("limitrequeststime")]
+        [Alias("lrt")]
+        [Summary("Sets the time users must wait once their request limit is reached.")]
+        [RequireSudo]
+        public async Task SetLimitRequestsTimeAsync(
+    [Summary("The new time in minutes. Set to 0 to disable.")] int newTime)
+        {
+            var settings = Hub.Config.RotatingRaidSV.RaidSettings;
+            settings.LimitRequestsTime = newTime;
+
+            await ReplyAsync($"LimitRequestsTime updated to {newTime} minutes.").ConfigureAwait(false);
+        }
+
+[Command("addlimitbypass")]
+[Alias("alb")]
+[Summary("Adds a user or role to the bypass list for request limits.")]
+[RequireSudo]
+public async Task AddBypassLimitAsync([Remainder]string mention)
+{
+    ulong idToAdd = 0;
+    string nameToAdd = "";
+    string type = "";
+
+    // Check if mention is a user
+    if (MentionUtils.TryParseUser(mention, out idToAdd))
+    {
+        var user = Context.Guild.GetUser(idToAdd);
+        nameToAdd = user?.Username ?? "Unknown User";
+        type = "User";
+    }
+    // Check if mention is a role
+    else if (MentionUtils.TryParseRole(mention, out idToAdd))
+    {
+        var role = Context.Guild.GetRole(idToAdd);
+        nameToAdd = role?.Name ?? "Unknown Role";
+        type = "Role";
+    }
+    else
+    {
+        await ReplyAsync("Invalid user or role.").ConfigureAwait(false);
+        return;
+    }
+
+    if (!Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.ContainsKey(idToAdd))
+    {
+        Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.Add(idToAdd, nameToAdd);
+
+        await ReplyAsync($"Added {type} '{nameToAdd}' to bypass list.").ConfigureAwait(false);
+    }
+    else
+    {
+        await ReplyAsync($"{type} '{nameToAdd}' is already in the bypass list.").ConfigureAwait(false);
+    }
+}
+
+
         [Command("repeek")]
         [Summary("Take and send a screenshot from the specified Switch.")]
         [RequireOwner]
@@ -265,6 +335,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             [Summary("Story Progress Level")] int storyProgressLevel = 6,
             [Summary("Event (Optional)")] string? eventType = null)  // New argument for specifying an event
         {
+
             // Check if raid requests are disabled by the host
             if (Hub.Config.RotatingRaidSV.RaidSettings.DisableRequests)
             {
@@ -278,6 +349,26 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             {
                 await ReplyAsync("You already have an existing raid request in the queue.").ConfigureAwait(false);
                 return;
+            }
+            var userRequestManager = new UserRequestManager();
+            var userRoles = (Context.User as SocketGuildUser)?.Roles.Select(r => r.Id) ?? new List<ulong>();
+
+            if (!Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.ContainsKey(userId) &&
+                !userRoles.Any(roleId => Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.ContainsKey(roleId)))
+            {
+                if (!userRequestManager.CanRequest(userId, Hub.Config.RotatingRaidSV.RaidSettings.LimitRequests, Hub.Config.RotatingRaidSV.RaidSettings.LimitRequestsTime, out var remainingCooldown))
+                {
+                    string responseMessage = $"You have reached your request limit. Please wait {remainingCooldown.TotalMinutes:N0} minutes before making another request.";
+
+                    // Append the custom LimitRequestMsg if it's set
+                    if (!string.IsNullOrWhiteSpace(Hub.Config.RotatingRaidSV.RaidSettings.LimitRequestMsg))
+                    {
+                        responseMessage += $"\n{Hub.Config.RotatingRaidSV.RaidSettings.LimitRequestMsg}";
+                    }
+
+                    await ReplyAsync(responseMessage).ConfigureAwait(false);
+                    return;
+                }
             }
 
             // Validate the seed for hexadecimal format

@@ -108,6 +108,18 @@ namespace SysBot.Pokemon
             [Category(Hosting), Description("When true, the bot will not allow user requested raids and will inform them that this setting is on.")]
             public bool DisableRequests { get; set; } = false;
 
+            [Category(Hosting), Description("Limit the number of requests a user can issue.  Set to 0 to disable.\nCommands: $lr <number>")]
+            public int LimitRequests { get; set; } = 0;
+
+            [Category(Hosting), Description("Define the time (in minutes) the user must wait for requests once LimitRequests number is reached.  Set to 0 to disable.\nCommands: $lrt <number in minutes>")]
+            public int LimitRequestsTime { get; set; } = 0;
+
+            [Category(Hosting), Description("Custom message to display when a user reaches their request limit.")]
+            public string LimitRequestMsg { get; set; } = "If you'd like to bypass this limit, please [describe how to get the role].";
+
+            [Category(Hosting), Description("Dictionary of user and role IDs with names that can bypass request limits.\nCommands: $alb @Role or $alb @User")]
+            public Dictionary<ulong, string> BypassLimitRequests { get; set; } = new Dictionary<ulong, string>();
+
             [Category(FeatureToggle), Description("Prevent attacks.  When true, Overworld Spawns (Pokémon) are disabled on the next seed injection.  When false, Overworld Spawns (Pokémon) are enabled on the next seed injection.")]
             public bool DisableOverworldSpawns { get; set; } = true;
 
