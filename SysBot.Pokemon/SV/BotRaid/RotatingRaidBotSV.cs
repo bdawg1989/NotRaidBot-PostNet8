@@ -1364,14 +1364,14 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 return new List<long>(Offsets.RaidBlockPointerK)
                 {
-                    [3] = 0xCE8 + ((index - 69) * 0x20)
+                    [3] = 0xCE8 + ((index - 69) * 0x20) 
                 };
             }
             else if (IsBlueberry)
             {
                 return new List<long>(Offsets.RaidBlockPointerB)
                 {
-                    [3] = 0x1968 + ((index - 93) * 0x20)
+                    [3] = 0x1968 + ((index - 94) * 0x20)
                 };
             }
             else
