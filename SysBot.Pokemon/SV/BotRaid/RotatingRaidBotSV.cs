@@ -540,7 +540,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i} in Kitakami.");
+                    Log($"Raid Den Located at {i + 1:00} in Kitakami.");
                     IsKitakami = true;
                     return;
                 }
@@ -1364,7 +1364,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 return new List<long>(Offsets.RaidBlockPointerK)
                 {
-                    [3] = 0xCE8 + ((index - 69) * 0x20) 
+                    [3] = 0xCE8 + ((index - 70) * 0x20) 
                 };
             }
             else if (IsBlueberry)
