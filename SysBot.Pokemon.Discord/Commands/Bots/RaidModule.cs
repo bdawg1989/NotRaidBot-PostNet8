@@ -464,7 +464,14 @@ public async Task AddBypassLimitAsync([Remainder]string mention)
                 insertPosition++;
             }
 
+            // After the new raid is inserted
             Hub.Config.RotatingRaidSV.ActiveRaids.Insert(insertPosition, newparam);
+
+            // Adjust RotationCount
+            if (insertPosition <= RotationCount)
+            {
+                RotationCount++;
+            }
 
             await Context.Message.DeleteAsync().ConfigureAwait(false);
             var msg = $"{Context.User.Mention}, added your raid to the queue! I'll DM you when it's about to start.";
@@ -610,7 +617,10 @@ public async Task AddBypassLimitAsync([Remainder]string mention)
                 }
                 else
                 {
-                    raidsBeforeUser = userRequestIndex - currentPosition;
+                    // Adjust calculation for circular queue
+                    raidsBeforeUser = (userRequestIndex >= currentPosition)
+                        ? userRequestIndex - currentPosition
+                        : Hub.Config.RotatingRaidSV.ActiveRaids.Count - currentPosition + userRequestIndex;
                 }
 
                 if (raidsBeforeUser <= 0)
@@ -641,9 +651,10 @@ public async Task AddBypassLimitAsync([Remainder]string mention)
             int effectivePosition = 0;
 
             // Count how many raids are before the user's request, considering priority and randomness
-            for (int i = currentPosition; i < Hub.Config.RotatingRaidSV.ActiveRaids.Count; i++)
+            for (int i = currentPosition; i < Hub.Config.RotatingRaidSV.ActiveRaids.Count + currentPosition; i++)
             {
-                if (Hub.Config.RotatingRaidSV.ActiveRaids[i].RequestedByUserID != userId)
+                int actualIndex = i % Hub.Config.RotatingRaidSV.ActiveRaids.Count;
+                if (Hub.Config.RotatingRaidSV.ActiveRaids[actualIndex].RequestedByUserID != userId)
                 {
                     effectivePosition++;
                 }
@@ -654,7 +665,7 @@ public async Task AddBypassLimitAsync([Remainder]string mention)
                 }
 
                 // Check for priority raids added by RA command
-                if (Hub.Config.RotatingRaidSV.ActiveRaids[i].AddedByRACommand)
+                if (Hub.Config.RotatingRaidSV.ActiveRaids[actualIndex].AddedByRACommand)
                 {
                     effectivePosition--;  // RA-added raids are prioritized, so decrement the effective position
                 }

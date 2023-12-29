@@ -343,69 +343,9 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                     if (LobbyError >= 2)
                     {
-                        msg = $"Failed to create a lobby {LobbyError} times.\n ";
-                        dayRoll++;
-                    }
-
-                    if (dayRoll != 0 && SeedIndexToReplace != -1 && RaidCount != 0)
-                    {
-                        Log(msg + "Raid Lost initiating recovery sequence.");
-                        bool denFound = false;
-                        while (!denFound)
-                        {
-                            await Click(B, 0_500, token).ConfigureAwait(false);
-                            await Click(HOME, 3_500, token).ConfigureAwait(false);
-                            Log("Closed out of the game!");
-
-                            await RolloverCorrectionSV(token).ConfigureAwait(false);
-                            await Click(A, 1_500, token).ConfigureAwait(false);
-                            Log("Back in the game!");
-
-                            while (!await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
-                            {
-                                Log("Connecting...");
-                                if (!await ConnectToOnline(Hub.Config, token).ConfigureAwait(false))
-                                    continue;
-
-                                await RecoverToOverworld(token).ConfigureAwait(false);
-                            }
-
-                            await RecoverToOverworld(token).ConfigureAwait(false);
-
-                            // Check if there's a lobby.
-                            if (!await GetLobbyReady(true, token).ConfigureAwait(false))
-                            {
-                                continue;
-                            }
-                            else
-                            {
-                                Log("Den Found, continuing routine!");
-                                TodaySeed = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 8, token).ConfigureAwait(false), 0);
-                                LobbyError = 0;
-                                denFound = true;
-                                firstRun = true;
-                                hasSwapped = false;
-                                originalIdsSet = false;
-                                indicesInitialized = false;
-                                await Task.Delay(5_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(3_000, token).ConfigureAwait(false);
-                                await Click(A, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(5_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(1_000, token).ConfigureAwait(false);
-
-                            }
-                        };
-                        await Task.Delay(0_050, token).ConfigureAwait(false);
-                        if (denFound)
-                        {
-                            await SVSaveGameOverworld(token).ConfigureAwait(false);
-                            await Task.Delay(0_500, token).ConfigureAwait(false);
-                            await Click(B, 1_000, token).ConfigureAwait(false);
-                            continue;
-                        }
+                        Log($"Failed to create a lobby {LobbyError} times. Initiating recovery sequence.");
+                        await PerformRecoverySequence(token); // Extracted to a new method for clarity
+                        continue;
                     }
                     Log(msg);
                     await CloseGame(Hub.Config, token).ConfigureAwait(false);
@@ -491,6 +431,66 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
             if (Settings.RaidSettings.TotalRaidsToHost > 0 && raidsHosted != 0)
                 Log("Total raids to host has been met.");
+        }
+        private async Task PerformRecoverySequence(CancellationToken token)
+        {
+            Log("Initiating Recovery Sequence due to multiple lobby creation failures.");
+
+            // Attempt to roll back the time and restart the game
+            await Click(B, 0_500, token).ConfigureAwait(false);
+            await Click(HOME, 3_500, token).ConfigureAwait(false);
+            Log("Closed out of the game!");
+
+            await RollBackHour(token).ConfigureAwait(false); // Or RollBackMinute based on your logic
+            await Click(A, 1_500, token).ConfigureAwait(false);
+            Log("Back in the game!");
+
+            // Reconnect to online services if necessary
+            while (!await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
+            {
+                Log("Connecting...");
+                if (!await ConnectToOnline(Hub.Config, token).ConfigureAwait(false))
+                    continue;
+
+                await RecoverToOverworld(token).ConfigureAwait(false);
+            }
+
+            // Recheck the lobby status after recovery
+            bool denFound = false;
+            while (!denFound)
+            {
+                if (!await GetLobbyReady(true, token).ConfigureAwait(false))
+                {
+                    Log("No lobby found. Repeating the recovery sequence.");
+                    // Repeat the recovery steps as necessary
+                    // Consider adding a limit to the number of retries to avoid infinite loops
+                }
+                else
+                {
+                    Log("Lobby found, proceeding with normal operation.");
+                    denFound = true;
+                }
+            }
+
+            // Post-recovery actions
+            TodaySeed = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 8, token).ConfigureAwait(false), 0);
+            LobbyError = 0;
+            firstRun = true;
+            hasSwapped = false;
+            originalIdsSet = false;
+            indicesInitialized = false;
+
+            await Task.Delay(5_000, token).ConfigureAwait(false);
+            await Click(B, 1_000, token).ConfigureAwait(false);
+            await Task.Delay(3_000, token).ConfigureAwait(false);
+            await Click(A, 1_000, token).ConfigureAwait(false);
+            await Task.Delay(5_000, token).ConfigureAwait(false);
+            await Click(B, 1_000, token).ConfigureAwait(false);
+            await Click(B, 1_000, token).ConfigureAwait(false);
+            await Task.Delay(1_000, token).ConfigureAwait(false);
+
+            // Save game state or perform any other necessary post-recovery actions
+            await SVSaveGameOverworld(token).ConfigureAwait(false);
         }
 
         public override async Task HardStop()
@@ -881,7 +881,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             await LocateSeedIndex(token).ConfigureAwait(false);
             await CountRaids(trainers, token).ConfigureAwait(false);
-
+            await Task.Delay(1_500, token).ConfigureAwait(false);
             // Update RotationCount after locating seed index
             if (Settings.ActiveRaids.Count > 1)
             {
@@ -1410,7 +1410,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task SanitizeRotationCount(CancellationToken token)
         {
-            await Task.Delay(0_050, token).ConfigureAwait(false);
+            await Task.Delay(50, token).ConfigureAwait(false);
 
             if (Settings.ActiveRaids.Count == 0)
             {
@@ -1420,7 +1420,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             // Normalize RotationCount to be within the range of ActiveRaids
-            RotationCount = (RotationCount >= Settings.ActiveRaids.Count) ? 0 : RotationCount;
+            RotationCount = Math.Max(0, Math.Min(RotationCount, Settings.ActiveRaids.Count - 1));
 
             // Process RA command raids
             if (Settings.ActiveRaids[RotationCount].AddedByRACommand)
@@ -1432,7 +1432,11 @@ namespace SysBot.Pokemon.SV.BotRaid
                 {
                     Log($"Raid for {Settings.ActiveRaids[RotationCount].Species} was added via RA command and will be removed from the rotation list.");
                     Settings.ActiveRaids.RemoveAt(RotationCount);
-                    RotationCount = (RotationCount >= Settings.ActiveRaids.Count) ? 0 : RotationCount;
+                    // Adjust RotationCount after removal
+                    if (RotationCount >= Settings.ActiveRaids.Count)
+                    {
+                        RotationCount = 0;
+                    }
                 }
                 else if (!firstRun)
                 {
@@ -1463,35 +1467,30 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private int FindNextPriorityRaidIndex(int currentRotationCount, List<RotatingRaidParameters> raids)
         {
+            if (raids == null || raids.Count == 0)
+            {
+                // Handle edge case where raids list is empty or null
+                return currentRotationCount;
+            }
+
             int count = raids.Count;
 
-            // First, check for user-requested RA command raids that are not Mystery Shiny Raids
             for (int i = 0; i < count; i++)
             {
                 int index = (currentRotationCount + i) % count;
                 RotatingRaidParameters raid = raids[index];
 
-                if (raid.AddedByRACommand && !raid.Title.Contains("Mystery Shiny Raid"))
+                bool isUserRequestedRaid = raid.AddedByRACommand && !raid.Title.Contains("Mystery Shiny Raid");
+                bool isMysteryShinyRaid = Settings.RaidSettings.MysteryRaids && raid.Title.Contains("Mystery Shiny Raid");
+
+                // Prioritize user-requested raids over Mystery Shiny Raids
+                if (isUserRequestedRaid || isMysteryShinyRaid)
                 {
                     return index;
                 }
             }
-            // If no user-requested raids are found, check for Mystery Shiny Raids if enabled
-            if (Settings.RaidSettings.MysteryRaids)
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    int index = (currentRotationCount + i) % count;
-                    RotatingRaidParameters raid = raids[index];
 
-                    if (raid.Title.Contains("Mystery Shiny Raid"))
-                    {
-                        return index;
-                    }
-                }
-            }
-
-            // If no priority raids are found, return the current rotation count
+            // Return current rotation count if no priority raids are found
             return currentRotationCount;
         }
 
@@ -1666,6 +1665,49 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             await Click(A, 8_000, token).ConfigureAwait(false);
             return true;
+        }
+
+        private async Task RollBackHour(CancellationToken token)
+        {
+            for (int i = 0; i < 2; i++)
+                await Click(B, 0_150, token).ConfigureAwait(false);
+
+            for (int i = 0; i < 2; i++)
+                await Click(DRIGHT, 0_150, token).ConfigureAwait(false);
+            await Click(DDOWN, 0_150, token).ConfigureAwait(false);
+            await Click(DRIGHT, 0_150, token).ConfigureAwait(false);
+            await Click(A, 1_250, token).ConfigureAwait(false); // Enter settings
+
+            await PressAndHold(DDOWN, 2_000, 0_250, token).ConfigureAwait(false); // Scroll to system settings
+            await Click(A, 1_250, token).ConfigureAwait(false);
+
+            if (Settings.MiscSettings.UseOvershoot)
+            {
+                await PressAndHold(DDOWN, Settings.MiscSettings.HoldTimeForRollover, 1_000, token).ConfigureAwait(false);
+                await Click(DUP, 0_500, token).ConfigureAwait(false);
+            }
+            else if (!Settings.MiscSettings.UseOvershoot)
+            {
+                for (int i = 0; i < 39; i++)
+                    await Click(DDOWN, 0_100, token).ConfigureAwait(false);
+            }
+
+            await Click(A, 1_250, token).ConfigureAwait(false);
+            for (int i = 0; i < 2; i++)
+                await Click(DDOWN, 0_150, token).ConfigureAwait(false);
+            await Click(A, 0_500, token).ConfigureAwait(false);
+
+            for (int i = 0; i < 3; i++) // Navigate to the hour setting
+                await Click(DRIGHT, 0_200, token).ConfigureAwait(false);
+
+            for (int i = 0; i < 1; i++) // Roll back the hour by 1
+                await Click(DDOWN, 0_200, token).ConfigureAwait(false);
+
+            for (int i = 0; i < 8; i++) // Mash DRIGHT to confirm
+                await Click(DRIGHT, 0_200, token).ConfigureAwait(false);
+
+            await Click(A, 0_200, token).ConfigureAwait(false); // Confirm date/time change
+            await Click(HOME, 1_000, token).ConfigureAwait(false); // Back to title screen
         }
 
         private async Task RollBackTime(CancellationToken token)
@@ -1969,6 +2011,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             ConnectedOffset = await SwitchConnection.PointerAll(Offsets.IsConnectedPointer, token).ConfigureAwait(false);
             RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
             RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
+            RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
             if (firstRun)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);
