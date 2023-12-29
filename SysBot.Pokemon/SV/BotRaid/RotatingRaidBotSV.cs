@@ -2360,6 +2360,11 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             while (true) // Loop until a successful connection is made or the task is canceled
             {
+                if (token.IsCancellationRequested)
+                {
+                    Log("Connection attempt canceled.");
+                    break; 
+                }
                 try
                 {
                     if (await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
