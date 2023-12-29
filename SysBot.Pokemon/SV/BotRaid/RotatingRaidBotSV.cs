@@ -2283,6 +2283,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             if (!disband && !upnext && !raidstart)
             {
                 StringBuilder statsField = new StringBuilder();
+                statsField.AppendLine($"**Level**: {RaidEmbedInfo.RaidLevel}");
                 statsField.AppendLine($"**Gender**: {RaidEmbedInfo.RaidSpeciesGender}");
                 statsField.AppendLine($"**Nature**: {RaidEmbedInfo.RaidSpeciesNature}");
                 statsField.AppendLine($"**Ability**: {RaidEmbedInfo.RaidSpeciesAbility}");
@@ -2981,6 +2982,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                         RaidEmbedInfo.Moves = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}\n")).TrimEnd(Environment.NewLine.ToCharArray());
                         RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
                         RaidEmbedInfo.ScaleNumber = pk.Scale;
+                        RaidEmbedInfo.RaidLevel = encounter.Level;
                         // Update Species and SpeciesForm in ActiveRaids
                         Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
                         Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
@@ -3154,6 +3156,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             public static string RaidEmbedTitle = string.Empty;
             public static Species RaidSpecies = Species.None;
             public static string RaidSpeciesGender = string.Empty;
+            public static int RaidLevel;
             public static string RaidSpeciesIVs = string.Empty;
             public static string RaidSpeciesAbility = string.Empty;
             public static string RaidSpeciesNature = string.Empty;

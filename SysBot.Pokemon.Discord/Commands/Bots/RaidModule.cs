@@ -173,48 +173,47 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             await ReplyAsync($"LimitRequestsTime updated to {newTime} minutes.").ConfigureAwait(false);
         }
 
-[Command("addlimitbypass")]
-[Alias("alb")]
-[Summary("Adds a user or role to the bypass list for request limits.")]
-[RequireSudo]
-public async Task AddBypassLimitAsync([Remainder]string mention)
-{
-    ulong idToAdd = 0;
-    string nameToAdd = "";
-    string type = "";
+        [Command("addlimitbypass")]
+        [Alias("alb")]
+        [Summary("Adds a user or role to the bypass list for request limits.")]
+        [RequireSudo]
+        public async Task AddBypassLimitAsync([Remainder] string mention)
+        {
+            ulong idToAdd = 0;
+            string nameToAdd = "";
+            string type = "";
 
-    // Check if mention is a user
-    if (MentionUtils.TryParseUser(mention, out idToAdd))
-    {
-        var user = Context.Guild.GetUser(idToAdd);
-        nameToAdd = user?.Username ?? "Unknown User";
-        type = "User";
-    }
-    // Check if mention is a role
-    else if (MentionUtils.TryParseRole(mention, out idToAdd))
-    {
-        var role = Context.Guild.GetRole(idToAdd);
-        nameToAdd = role?.Name ?? "Unknown Role";
-        type = "Role";
-    }
-    else
-    {
-        await ReplyAsync("Invalid user or role.").ConfigureAwait(false);
-        return;
-    }
+            // Check if mention is a user
+            if (MentionUtils.TryParseUser(mention, out idToAdd))
+            {
+                var user = Context.Guild.GetUser(idToAdd);
+                nameToAdd = user?.Username ?? "Unknown User";
+                type = "User";
+            }
+            // Check if mention is a role
+            else if (MentionUtils.TryParseRole(mention, out idToAdd))
+            {
+                var role = Context.Guild.GetRole(idToAdd);
+                nameToAdd = role?.Name ?? "Unknown Role";
+                type = "Role";
+            }
+            else
+            {
+                await ReplyAsync("Invalid user or role.").ConfigureAwait(false);
+                return;
+            }
 
-    if (!Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.ContainsKey(idToAdd))
-    {
-        Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.Add(idToAdd, nameToAdd);
+            if (!Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.ContainsKey(idToAdd))
+            {
+                Hub.Config.RotatingRaidSV.RaidSettings.BypassLimitRequests.Add(idToAdd, nameToAdd);
 
-        await ReplyAsync($"Added {type} '{nameToAdd}' to bypass list.").ConfigureAwait(false);
-    }
-    else
-    {
-        await ReplyAsync($"{type} '{nameToAdd}' is already in the bypass list.").ConfigureAwait(false);
-    }
-}
-
+                await ReplyAsync($"Added {type} '{nameToAdd}' to bypass list.").ConfigureAwait(false);
+            }
+            else
+            {
+                await ReplyAsync($"{type} '{nameToAdd}' is already in the bypass list.").ConfigureAwait(false);
+            }
+        }
 
         [Command("repeek")]
         [Summary("Take and send a screenshot from the specified Switch.")]
