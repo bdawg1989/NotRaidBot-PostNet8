@@ -688,19 +688,34 @@ public async Task AddBypassLimitAsync([Remainder]string mention)
                 return;
             }
 
-            // Prevent canceling if the raid is next in line
-            if (raidIndex == RotationCount + 1)
+            // Calculate the effective position excluding Mystery Shiny Raids
+            int effectivePosition = CalculateEffectivePositionExcludingMysteryRaids(raidIndex, list);
+
+            // Prevent canceling if the raid is next in line (excluding Mystery Shiny Raids)
+            if (effectivePosition == 1)
             {
                 await ReplyAsync("Your raid request is up next and cannot be canceled at this time.").ConfigureAwait(false);
                 return;
             }
 
             // Proceed with removal if it's not next in line
-            var raid = list[raidIndex];
             list.RemoveAt(raidIndex);
             await Context.Message.DeleteAsync().ConfigureAwait(false);
             var msg = $"Cleared your Raid from the queue.";
             await ReplyAsync(msg).ConfigureAwait(false);
+        }
+
+        private int CalculateEffectivePositionExcludingMysteryRaids(int raidIndex, List<RotatingRaidParameters> raids)
+        {
+            int position = 0;
+            for (int i = RotationCount; i != raidIndex; i = (i + 1) % raids.Count)
+            {
+                if (!raids[i].Title.Contains("Mystery Shiny Raid"))
+                {
+                    position++;
+                }
+            }
+            return position;
         }
 
         [Command("removeRaidParams")]
