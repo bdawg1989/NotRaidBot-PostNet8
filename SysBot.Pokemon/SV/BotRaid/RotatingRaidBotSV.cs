@@ -3019,6 +3019,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             var stars = raid.IsEvent ? encounter.Stars : raid.GetStarCount(raid.Difficulty, storyProgressLevel, raid.IsBlack);
             var teraType = raid.GetTeraType(encounter);
             var form = encounter.Form;
+            var level = encounter.Level;
 
             var param = encounter.GetParam();
             var pk = new PK9
@@ -3070,6 +3071,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 x.Name = "**__Stats__**";
                 x.Value = $"{Format.Bold($"TeraType:")} {strings.Types[teraType]} \n" +
+                          $"{Format.Bold($"Level:")} {level}\n" +
                           $"{Format.Bold($"Ability:")} {strings.Ability[pk.Ability]}\n" +
                           $"{Format.Bold("Nature:")} {(Nature)pk.Nature}\n" +
                           $"{Format.Bold("IVs:")} {pk.IV_HP}/{pk.IV_ATK}/{pk.IV_DEF}/{pk.IV_SPA}/{pk.IV_SPD}/{pk.IV_SPE}\n" +
