@@ -650,25 +650,24 @@ public async Task AddBypassLimitAsync([Remainder]string mention)
         {
             int effectivePosition = 0;
 
-            // Count how many raids are before the user's request, considering priority and randomness
             for (int i = currentPosition; i < Hub.Config.RotatingRaidSV.ActiveRaids.Count + currentPosition; i++)
             {
                 int actualIndex = i % Hub.Config.RotatingRaidSV.ActiveRaids.Count;
-                if (Hub.Config.RotatingRaidSV.ActiveRaids[actualIndex].RequestedByUserID != userId)
-                {
-                    effectivePosition++;
-                }
-                else
+                var raid = Hub.Config.RotatingRaidSV.ActiveRaids[actualIndex];
+
+                if (raid.RequestedByUserID == userId)
                 {
                     // Found the user's request
                     break;
                 }
 
-                // Check for priority raids added by RA command
-                if (Hub.Config.RotatingRaidSV.ActiveRaids[actualIndex].AddedByRACommand)
+                // Skip counting Mystery Shiny Raids
+                if (raid.Title.Contains("Mystery Shiny Raid"))
                 {
-                    effectivePosition--;  // RA-added raids are prioritized, so decrement the effective position
+                    continue;
                 }
+
+                effectivePosition++;
             }
             return effectivePosition;
         }
