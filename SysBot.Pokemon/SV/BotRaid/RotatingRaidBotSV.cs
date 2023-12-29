@@ -1475,18 +1475,30 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             int count = raids.Count;
 
+            // First, check for user-requested RA command raids
             for (int i = 0; i < count; i++)
             {
                 int index = (currentRotationCount + i) % count;
                 RotatingRaidParameters raid = raids[index];
 
-                bool isUserRequestedRaid = raid.AddedByRACommand && !raid.Title.Contains("Mystery Shiny Raid");
-                bool isMysteryShinyRaid = Settings.RaidSettings.MysteryRaids && raid.Title.Contains("Mystery Shiny Raid");
-
-                // Prioritize user-requested raids over Mystery Shiny Raids
-                if (isUserRequestedRaid || isMysteryShinyRaid)
+                if (raid.AddedByRACommand && !raid.Title.Contains("Mystery Shiny Raid"))
                 {
-                    return index;
+                    return index; // Prioritize user-requested raids
+                }
+            }
+
+            // Next, check for Mystery Shiny Raids if enabled
+            if (Settings.RaidSettings.MysteryRaids)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    int index = (currentRotationCount + i) % count;
+                    RotatingRaidParameters raid = raids[index];
+
+                    if (raid.Title.Contains("Mystery Shiny Raid"))
+                    {
+                        return index; // Only consider Mystery Shiny Raids after user-requested raids
+                    }
                 }
             }
 
