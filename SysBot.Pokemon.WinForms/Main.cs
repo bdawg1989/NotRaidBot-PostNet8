@@ -20,7 +20,7 @@ namespace SysBot.Pokemon.WinForms
         private IPokeBotRunner RunningEnvironment { get; set; }
 
         public readonly ISwitchConnectionAsync? SwitchConnection;
-
+        public static bool IsUpdating { get; set; } = false;
         public Main()
         {
             InitializeComponent();
@@ -34,6 +34,8 @@ namespace SysBot.Pokemon.WinForms
 
         private async Task InitializeAsync()
         {
+            if (IsUpdating)
+                return;
             string discordName = string.Empty;
 
             // Existing license check code
@@ -217,6 +219,10 @@ namespace SysBot.Pokemon.WinForms
 
         private void Main_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (IsUpdating)
+            {
+                return;
+            }
             SaveCurrentConfig();
             var bots = RunningEnvironment;
             if (!bots.IsRunning)

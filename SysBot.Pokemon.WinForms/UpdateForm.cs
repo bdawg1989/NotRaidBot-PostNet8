@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 using System.Diagnostics;
+using SysBot.Pokemon.WinForms;
 
 public class UpdateForm : Form
 {
@@ -24,13 +25,13 @@ public class UpdateForm : Form
         labelUpdateInfo.Text = "A new version is available. Please download the latest version.";
 
         // buttonDownload
-        buttonDownload.Location = new System.Drawing.Point(75, 60);
+        buttonDownload.Location = new System.Drawing.Point(110, 107);
         buttonDownload.Size = new System.Drawing.Size(130, 23);
         buttonDownload.Text = "Download Update";
         buttonDownload.Click += ButtonDownload_Click;
 
         // UpdateForm
-        this.ClientSize = new System.Drawing.Size(284, 100);
+        this.ClientSize = new System.Drawing.Size(350, 150);
         this.Controls.Add(this.labelUpdateInfo);
         this.Controls.Add(this.buttonDownload);
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -43,8 +44,16 @@ public class UpdateForm : Form
 
     private void ButtonDownload_Click(object sender, EventArgs e)
     {
-        // Open the download URL in the user's default browser
-        Process.Start("http://genpkm.com/nrb/notraidbot.exe");
+        Main.IsUpdating = true;
+        // Correctly open the URL in the default web browser
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "https://genpkm.com/nrb/NotRaidBot.exe",
+            UseShellExecute = true
+        });
+        MessageBox.Show("Please close this program and replace the program with the one that just downloaded.", "Update Instructions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        Application.Exit();
     }
+
 }
 
