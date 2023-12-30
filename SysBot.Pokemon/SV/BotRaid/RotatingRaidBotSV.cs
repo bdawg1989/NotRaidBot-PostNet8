@@ -3058,7 +3058,17 @@ namespace SysBot.Pokemon.SV.BotRaid
                 }
             }
             if (!string.IsNullOrEmpty(extraMoves)) movesList += $"**Extra Moves:**\n{extraMoves}";
-            var specialRewards = GetSpecialRewards(reward, rewardsToShow);
+            var specialRewards = string.Empty;
+
+            try
+            {
+                // Process materials and other rewards
+                specialRewards = GetSpecialRewards(reward, rewardsToShow);
+            }
+            catch
+            {
+                specialRewards = "No valid rewards to display";
+            }
             var teraTypeLower = strings.Types[teraType].ToLower();
             var teraIconUrl = $"https://genpkm.com/images/teraicons/icon1/{teraTypeLower}.png";
             var disclaimer = $"NotRaidBot {NotRaidBot.Version} by Gengar & Kai\nhttps://notpaldea.net";
@@ -3087,7 +3097,14 @@ namespace SysBot.Pokemon.SV.BotRaid
             });
 
             embed.AddField("**__Moves__**", movesList, true);
-            embed.AddField("**__Special Rewards__**", string.IsNullOrEmpty(specialRewards) ? "No Rewards To Display" : specialRewards, true);
+            if (!string.IsNullOrEmpty(specialRewards))
+            {
+                embed.AddField("**__Special Rewards__**", specialRewards, true);
+            }
+            else
+            {
+                embed.AddField("**__Special Rewards__**", "No special rewards available", true);
+            }
 
             var programIconUrl = "https://genpkm.com/images/icon4.png";
             embed.WithFooter(new EmbedFooterBuilder()

@@ -4,6 +4,7 @@ using SysBot.Base;
 using SysBot.Pokemon.SV.BotRaid;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -660,37 +661,51 @@ namespace SysBot.Pokemon
 
         public async Task ReadEventRaids(ulong BaseBlockKeyPointer, RaidContainer container, CancellationToken token, bool force = false)
         {
-            var prio_file = Path.Combine(Directory.GetCurrentDirectory(), "cache", "raid_priority_array");
-            if (!force && File.Exists(prio_file))
+            var priorityFile = Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "cache",
+                "raid_priority_array"
+            );
+            if (!force && File.Exists(priorityFile))
             {
-                (_, var version) = FlatbufferDumper.DumpDeliveryPriorities(File.ReadAllBytes(prio_file));
-                var blk = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidPriorityLocation, "raid_priority_array.tmp", true, token).ConfigureAwait(false);
-                (_, var v2) = FlatbufferDumper.DumpDeliveryPriorities(blk);
+                var (_, version) = FlatbufferDumper.DumpDeliveryPriorities(
+                    await File.ReadAllBytesAsync(priorityFile, token)
+                );
+                var block = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidPriorityLocation, "raid_priority_array.tmp", true, token).ConfigureAwait(false);
+                var (_, v2) = FlatbufferDumper.DumpDeliveryPriorities(block);
                 if (version != v2)
                     force = true;
 
-                var tmp_file = Path.Combine(Directory.GetCurrentDirectory(), "cache", "raid_priority_array.tmp");
-                if (File.Exists(tmp_file))
-                    File.Delete(tmp_file);
+                var tempFile = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "cache",
+                    "raid_priority_array.tmp"
+                );
+                if (File.Exists(tempFile))
+                    File.Delete(tempFile);
 
                 if (v2 == 0) // raid reset
                     return;
             }
 
-            var delivery_raid_prio = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidPriorityLocation, "raid_priority_array", force, token).ConfigureAwait(false);
-            (var group_id, var priority) = FlatbufferDumper.DumpDeliveryPriorities(delivery_raid_prio);
+            var deliveryRaidPriorityFlatbuffer = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidPriorityLocation, "raid_priority_array", force, token).ConfigureAwait(false);
+            var (groupID, priority) = FlatbufferDumper.DumpDeliveryPriorities(deliveryRaidPriorityFlatbuffer);
             if (priority == 0)
                 return;
 
-            var delivery_raid_fbs = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidBinaryLocation, "raid_enemy_array", force, token).ConfigureAwait(false);
-            var delivery_fixed_rewards = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidFixedRewardLocation, "fixed_reward_item_array", force, token).ConfigureAwait(false);
-            var delivery_lottery_rewards = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidLotteryRewardLocation, "lottery_reward_item_array", force, token).ConfigureAwait(false);
+            var deliveryRaidFlatbuffer = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidBinaryLocation, "raid_enemy_array", force, token).ConfigureAwait(false);
+            var deliveryFixedRewardFlatbuffer = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidFixedRewardLocation, "fixed_reward_item_array", force, token).ConfigureAwait(false);
+            var deliveryLotteryRewardFlatbuffer = await ReadBlockDefault(BaseBlockKeyPointer, RaidCrawler.Core.Structures.Offsets.BCATRaidLotteryRewardLocation, "lottery_reward_item_array", force, token).ConfigureAwait(false);
 
-            container.DistTeraRaids = TeraDistribution.GetAllEncounters(delivery_raid_fbs);
-            container.MightTeraRaids = TeraMight.GetAllEncounters(delivery_raid_fbs);
-            container.DeliveryRaidPriority = group_id;
-            container.DeliveryRaidFixedRewards = FlatbufferDumper.DumpFixedRewards(delivery_fixed_rewards);
-            container.DeliveryRaidLotteryRewards = FlatbufferDumper.DumpLotteryRewards(delivery_lottery_rewards);
+            container.DistTeraRaids = TeraDistribution.GetAllEncounters(deliveryRaidFlatbuffer);
+            container.MightTeraRaids = TeraMight.GetAllEncounters(deliveryRaidFlatbuffer);
+            container.DeliveryRaidPriority = groupID;
+            container.DeliveryRaidFixedRewards = FlatbufferDumper.DumpFixedRewards(
+                deliveryFixedRewardFlatbuffer
+            );
+            container.DeliveryRaidLotteryRewards = FlatbufferDumper.DumpLotteryRewards(
+                deliveryLotteryRewardFlatbuffer
+            );
         }
 
         public static (PK9, uint) IsSeedReturned(ITeraRaid enc, Raid raid)
