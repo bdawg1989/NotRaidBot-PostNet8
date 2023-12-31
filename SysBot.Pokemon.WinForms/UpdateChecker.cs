@@ -8,16 +8,43 @@ public class UpdateChecker
 {
     private const string VersionUrl = "https://genpkm.com/nrb/version.txt";
 
-    public async Task<bool> CheckForUpdatesAsync()
+    // This method is now updated to return a tuple containing version and required flag
+    public async Task<(bool UpdateAvailable, bool UpdateRequired)> CheckForUpdatesAsync()
     {
-        string latestVersion = await FetchLatestVersionAsync();
-        if (!string.IsNullOrEmpty(latestVersion) && latestVersion != NotRaidBot.Version)
+        var versionInfo = await FetchVersionInfoAsync();
+        bool updateAvailable = !string.IsNullOrEmpty(versionInfo.Version) && versionInfo.Version != NotRaidBot.Version;
+        bool updateRequired = versionInfo.UpdateRequired;
+
+        if (updateAvailable)
         {
-            UpdateForm updateForm = new UpdateForm();
+            UpdateForm updateForm = new UpdateForm(updateRequired); // Pass the required update flag to the form
             updateForm.ShowDialog();
-            return true; // Update is available
         }
-        return false; // No update available
+
+        return (updateAvailable, updateRequired);
+    }
+
+    // Fetch and parse the version information
+    private async Task<(string Version, bool UpdateRequired)> FetchVersionInfoAsync()
+    {
+        using (var client = new HttpClient())
+        {
+            try
+            {
+                string content = await client.GetStringAsync(VersionUrl);
+                var lines = content.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                var versionLine = lines[0].Trim();
+                var requiredLine = lines.Length > 1 ? lines[1].Trim() : "";
+                var required = requiredLine.Equals("required=yes", StringComparison.OrdinalIgnoreCase);
+
+                return (versionLine, required);
+            }
+            catch (Exception)
+            {
+                // Handle exceptions (e.g., network errors)
+                return (null, false);
+            }
+        }
     }
 
     // Add a method to fetch the changelog
@@ -34,23 +61,6 @@ public class UpdateChecker
             {
                 // Handle exceptions (e.g., network errors)
                 return "Changelog is not available at the moment.";
-            }
-        }
-    }
-
-    private async Task<string> FetchLatestVersionAsync()
-    {
-        using (var client = new HttpClient())
-        {
-            try
-            {
-                string latestVersion = await client.GetStringAsync(VersionUrl);
-                return latestVersion.Trim();
-            }
-            catch (Exception)
-            {
-                // Handle exceptions (e.g., network errors)
-                return null;
             }
         }
     }

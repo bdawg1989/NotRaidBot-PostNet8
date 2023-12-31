@@ -10,9 +10,11 @@ public class UpdateForm : Form
     private Button buttonDownload;
     private Label labelUpdateInfo;
     private TextBox textBoxChangelog;
+    private bool isUpdateRequired;
 
-    public UpdateForm()
+    public UpdateForm(bool updateRequired)
     {
+        isUpdateRequired = updateRequired;
         InitializeComponent();
         Load += async (sender, e) => await FetchAndDisplayChangelog();
     }
@@ -65,16 +67,29 @@ public class UpdateForm : Form
     }
     private void ButtonDownload_Click(object sender, EventArgs e)
     {
+        // If the update is required, inform the user and then close the application.
+        if (isUpdateRequired)
+        {
+            MessageBox.Show("A required update is available. The application will now close to proceed with the update.", "Required Update", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            StartDownloadProcess();
+            Application.Exit();
+        }
+        else
+        {
+            StartDownloadProcess();
+            MessageBox.Show("An update is available. Please close this program and replace the program with the one that just downloaded.", "Update Instructions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
+    private void StartDownloadProcess()
+    {
         Main.IsUpdating = true;
-        // Correctly open the URL in the default web browser
+        // Start the download by opening the URL in the default web browser
         Process.Start(new ProcessStartInfo
         {
             FileName = "https://genpkm.com/nrb/NotRaidBot.exe",
             UseShellExecute = true
         });
-        MessageBox.Show("Please close this program and replace the program with the one that just downloaded.", "Update Instructions", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        Application.Exit();
     }
-
 }
 
