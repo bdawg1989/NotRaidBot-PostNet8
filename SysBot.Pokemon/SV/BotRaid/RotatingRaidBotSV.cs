@@ -357,7 +357,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                             await Click(HOME, 3_500, token).ConfigureAwait(false);
                             Log("Closed out of the game!");
 
-                            await RollBackHour(token).ConfigureAwait(false);
+                            await RolloverCorrectionSV(token).ConfigureAwait(false);
                             await Click(A, 1_500, token).ConfigureAwait(false);
                             Log("Back in the game!");
 
@@ -409,11 +409,12 @@ namespace SysBot.Pokemon.SV.BotRaid
                     }
                     Log(msg);
                     await CloseGame(Hub.Config, token).ConfigureAwait(false);
-                    await RollBackHour(token).ConfigureAwait(false);
+                    await RolloverCorrectionSV(token).ConfigureAwait(false);
                     await StartGameRaid(Hub.Config, token).ConfigureAwait(false);
                     dayRoll++;
                     continue;
                 }
+
                 // Clear NIDs.
                 await SwitchConnection.WriteBytesAbsoluteAsync(new byte[32], TeraNIDOffsets[0], token).ConfigureAwait(false);
 
@@ -1682,7 +1683,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             for (int i = 0; i < 2; i++)
                 await Click(B, 0_150, token).ConfigureAwait(false);
-
+            Log("Navigating to time settings.");
             for (int i = 0; i < 2; i++)
                 await Click(DRIGHT, 0_150, token).ConfigureAwait(false);
             await Click(DDOWN, 0_150, token).ConfigureAwait(false);
@@ -1710,7 +1711,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             for (int i = 0; i < 3; i++) // Navigate to the hour setting
                 await Click(DRIGHT, 0_200, token).ConfigureAwait(false);
-
+            Log("Rolling Time Back 1 Hour.");
             for (int i = 0; i < 1; i++) // Roll back the hour by 1
                 await Click(DDOWN, 0_200, token).ConfigureAwait(false);
 
