@@ -343,18 +343,77 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                     if (LobbyError >= 2)
                     {
-                        Log($"Failed to create a lobby {LobbyError} times. Initiating recovery sequence.");
-                        await PerformRecoverySequence(token); // Extracted to a new method for clarity
-                        continue;
+                        msg = $"Failed to create a lobby {LobbyError} times.\n ";
+                        dayRoll++;
+                    }
+
+                    if (dayRoll != 0 && SeedIndexToReplace != -1 && RaidCount != 0)
+                    {
+                        Log(msg + "Raid Lost initiating recovery sequence.");
+                        bool denFound = false;
+                        while (!denFound)
+                        {
+                            await Click(B, 0_500, token).ConfigureAwait(false);
+                            await Click(HOME, 3_500, token).ConfigureAwait(false);
+                            Log("Closed out of the game!");
+
+                            await RollBackHour(token).ConfigureAwait(false);
+                            await Click(A, 1_500, token).ConfigureAwait(false);
+                            Log("Back in the game!");
+
+                            while (!await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
+                            {
+                                Log("Connecting...");
+                                if (!await ConnectToOnline(Hub.Config, token).ConfigureAwait(false))
+                                    continue;
+
+                                await RecoverToOverworld(token).ConfigureAwait(false);
+                            }
+
+                            await RecoverToOverworld(token).ConfigureAwait(false);
+
+                            // Check if there's a lobby.
+                            if (!await GetLobbyReady(true, token).ConfigureAwait(false))
+                            {
+                                continue;
+                            }
+                            else
+                            {
+                                Log("Den Found, continuing routine!");
+                                TodaySeed = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 8, token).ConfigureAwait(false), 0);
+                                LobbyError = 0;
+                                denFound = true;
+                                firstRun = true;
+                                hasSwapped = false;
+                                originalIdsSet = false;
+                                indicesInitialized = false;
+                                await Task.Delay(5_000, token).ConfigureAwait(false);
+                                await Click(B, 1_000, token).ConfigureAwait(false);
+                                await Task.Delay(3_000, token).ConfigureAwait(false);
+                                await Click(A, 1_000, token).ConfigureAwait(false);
+                                await Task.Delay(5_000, token).ConfigureAwait(false);
+                                await Click(B, 1_000, token).ConfigureAwait(false);
+                                await Click(B, 1_000, token).ConfigureAwait(false);
+                                await Task.Delay(1_000, token).ConfigureAwait(false);
+
+                            }
+                        };
+                        await Task.Delay(0_050, token).ConfigureAwait(false);
+                        if (denFound)
+                        {
+                            await SVSaveGameOverworld(token).ConfigureAwait(false);
+                            await Task.Delay(0_500, token).ConfigureAwait(false);
+                            await Click(B, 1_000, token).ConfigureAwait(false);
+                            continue;
+                        }
                     }
                     Log(msg);
                     await CloseGame(Hub.Config, token).ConfigureAwait(false);
-                    await RolloverCorrectionSV(token).ConfigureAwait(false);
+                    await RollBackHour(token).ConfigureAwait(false);
                     await StartGameRaid(Hub.Config, token).ConfigureAwait(false);
                     dayRoll++;
                     continue;
                 }
-
                 // Clear NIDs.
                 await SwitchConnection.WriteBytesAbsoluteAsync(new byte[32], TeraNIDOffsets[0], token).ConfigureAwait(false);
 
@@ -431,66 +490,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
             if (Settings.RaidSettings.TotalRaidsToHost > 0 && raidsHosted != 0)
                 Log("Total raids to host has been met.");
-        }
-        private async Task PerformRecoverySequence(CancellationToken token)
-        {
-            Log("Initiating Recovery Sequence due to multiple lobby creation failures.");
-
-            // Attempt to roll back the time and restart the game
-            await Click(B, 0_500, token).ConfigureAwait(false);
-            await Click(HOME, 3_500, token).ConfigureAwait(false);
-            Log("Closed out of the game!");
-
-            await RollBackHour(token).ConfigureAwait(false); // Or RollBackMinute based on your logic
-            await Click(A, 1_500, token).ConfigureAwait(false);
-            Log("Back in the game!");
-
-            // Reconnect to online services if necessary
-            while (!await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
-            {
-                Log("Connecting...");
-                if (!await ConnectToOnline(Hub.Config, token).ConfigureAwait(false))
-                    continue;
-
-                await RecoverToOverworld(token).ConfigureAwait(false);
-            }
-
-            // Recheck the lobby status after recovery
-            bool denFound = false;
-            while (!denFound)
-            {
-                if (!await GetLobbyReady(true, token).ConfigureAwait(false))
-                {
-                    Log("No lobby found. Repeating the recovery sequence.");
-                    // Repeat the recovery steps as necessary
-                    // Consider adding a limit to the number of retries to avoid infinite loops
-                }
-                else
-                {
-                    Log("Lobby found, proceeding with normal operation.");
-                    denFound = true;
-                }
-            }
-
-            // Post-recovery actions
-            TodaySeed = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 8, token).ConfigureAwait(false), 0);
-            LobbyError = 0;
-            firstRun = true;
-            hasSwapped = false;
-            originalIdsSet = false;
-            indicesInitialized = false;
-
-            await Task.Delay(5_000, token).ConfigureAwait(false);
-            await Click(B, 1_000, token).ConfigureAwait(false);
-            await Task.Delay(3_000, token).ConfigureAwait(false);
-            await Click(A, 1_000, token).ConfigureAwait(false);
-            await Task.Delay(5_000, token).ConfigureAwait(false);
-            await Click(B, 1_000, token).ConfigureAwait(false);
-            await Click(B, 1_000, token).ConfigureAwait(false);
-            await Task.Delay(1_000, token).ConfigureAwait(false);
-
-            // Save game state or perform any other necessary post-recovery actions
-            await SVSaveGameOverworld(token).ConfigureAwait(false);
         }
 
         public override async Task HardStop()

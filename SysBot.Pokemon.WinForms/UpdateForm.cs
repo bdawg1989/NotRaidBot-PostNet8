@@ -2,15 +2,19 @@
 using System.Windows.Forms;
 using System.Diagnostics;
 using SysBot.Pokemon.WinForms;
+using System.Drawing;
+using System.Threading.Tasks;
 
 public class UpdateForm : Form
 {
     private Button buttonDownload;
     private Label labelUpdateInfo;
+    private TextBox textBoxChangelog;
 
     public UpdateForm()
     {
         InitializeComponent();
+        Load += async (sender, e) => await FetchAndDisplayChangelog();
     }
 
     private void InitializeComponent()
@@ -40,8 +44,25 @@ public class UpdateForm : Form
         this.Name = "UpdateForm";
         this.StartPosition = FormStartPosition.CenterScreen;
         this.Text = "Update Available";
-    }
 
+        textBoxChangelog = new TextBox
+        {
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            Location = new Point(10, 50), // Adjust as needed
+            Size = new Size(330, 80), // Adjust as needed
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom | AnchorStyles.Right
+        };
+
+        this.Controls.Add(this.textBoxChangelog);
+    }
+    private async Task FetchAndDisplayChangelog()
+    {
+        UpdateChecker updateChecker = new UpdateChecker();
+        string changelog = await updateChecker.FetchChangelogAsync();
+        textBoxChangelog.Text = changelog;
+    }
     private void ButtonDownload_Click(object sender, EventArgs e)
     {
         Main.IsUpdating = true;

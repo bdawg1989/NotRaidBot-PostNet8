@@ -60,9 +60,10 @@ namespace SysBot.Pokemon.WinForms
                 this.Show(); // Show the main form
                 await RegisterLicenseAsync();
             }
-            // Update check
+            // Update checker
             UpdateChecker updateChecker = new UpdateChecker();
             await updateChecker.CheckForUpdatesAsync();
+
             await StartupAsync();
 
             if (File.Exists(Program.ConfigPath))
