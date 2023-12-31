@@ -50,8 +50,9 @@ public class UpdateForm : Form
 
         // labelChangelogTitle
         labelChangelogTitle.AutoSize = true;
-        labelChangelogTitle.Location = new System.Drawing.Point(10, 30); // Set this Y position above textBoxChangelog
+        labelChangelogTitle.Location = new System.Drawing.Point(10, 60); // Set this Y position above textBoxChangelog
         labelChangelogTitle.Size = new System.Drawing.Size(70, 15); // Set an appropriate size or leave it to AutoSize
+        labelChangelogTitle.Font = new Font(labelChangelogTitle.Font.FontFamily, 11, FontStyle.Bold);
         labelChangelogTitle.Text = "Changelog:";
 
         // textBoxChangelog
