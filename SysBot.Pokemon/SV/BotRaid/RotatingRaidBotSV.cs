@@ -2735,8 +2735,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             container.SetEncounters(allEncounters);
             container.SetRewards(allRewards);
             await ProcessAllRaids(token);
-
-            await LocateSeedIndexOnReadRaids(allRaids, token);
         }
 
         private async Task<(List<Raid>, List<ITeraRaid>, List<List<(int, int, int)>>)> ProcessRaids(byte[] data, TeraRaidMapParent mapType, CancellationToken token)
@@ -2868,34 +2866,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             var dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB, (int)RaidBlock.SIZE_BLUEBERRY, token).ConfigureAwait(false);
             return dataB;
-        }
-
-        private async Task LocateSeedIndexOnReadRaids(List<Raid> allRaids, CancellationToken token)
-        {
-            for (int rc = 0; rc < Settings.ActiveRaids.Count; rc++)
-            {
-                uint targetSeed = uint.Parse(Settings.ActiveRaids[rc].Seed, NumberStyles.AllowHexSpecifier);
-
-                // Combine all raid seeds into a single list
-                var allSeeds = allRaids.Select(raid => raid.Seed).ToList();
-
-                // Find the index of the target seed
-                int seedIndex = allSeeds.IndexOf(targetSeed);
-
-                if (seedIndex != -1)
-                {
-                    // Skip updating for Might or Distribution raids
-                    if (Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Might || Settings.ActiveRaids[rc].CrystalType == TeraCrystalType.Distribution)
-                        continue;
-
-                    RotationCount = rc;
-                    Log($"Rotation Count set to {RotationCount}");
-                    return;
-                }
-            }
-
-            // Handle the case where the seed is not found
-            Log("Target seed not found in the Overworld.");
         }
 
         private List<int> GetPossibleGroups(RaidContainer container)
