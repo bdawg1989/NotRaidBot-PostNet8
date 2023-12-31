@@ -76,6 +76,8 @@ namespace SysBot.Pokemon.SV.BotRaid
         private uint areaIdIndex1;
         private uint denIdIndex1;
         private bool indicesInitialized = false;
+        private static int KitakamiDensCount = 0;
+        private static int BlueberryDensCount = 0;
 
         public override async Task MainLoop(CancellationToken token)
         {
@@ -513,6 +515,9 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task LocateSeedIndex(CancellationToken token)
         {
+            int upperBound = KitakamiDensCount == 25 ? 94 : 95;
+            int startIndex = KitakamiDensCount == 25 ? 94 : 95;
+
             // Skip updating SeedIndexToReplace for Might or Distribution Raids
             if (Settings.ActiveRaids[RotationCount].CrystalType == TeraCrystalType.Might ||
                 Settings.ActiveRaids[RotationCount].CrystalType == TeraCrystalType.Distribution)
@@ -534,7 +539,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK + 0x10, 0xC80, token).ConfigureAwait(false);
-            for (int i = 69; i < 94; i++)  // Kitakami Raids
+            for (int i = 69; i < upperBound; i++)  // Kitakami Raids
             {
                 var seed = BitConverter.ToUInt32(data.AsSpan((i - 69) * 0x20, 4));
                 if (seed == 0)
@@ -548,9 +553,9 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             // Adding support for Blueberry Raids
             data = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0xA00, token).ConfigureAwait(false);
-            for (int i = 94; i < 118; i++)  // Blueberry Raids
+            for (int i = startIndex; i < 118; i++)  // Blueberry Raids
             {
-                var seed = BitConverter.ToUInt32(data.AsSpan((i - 94) * 0x20, 4));
+                var seed = BitConverter.ToUInt32(data.AsSpan((i - startIndex) * 0x20, 4));
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i - 1;  // Adjusting the index by subtracting one
@@ -1360,6 +1365,8 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private List<long> CalculateDirectPointer(int index)
         {
+            int blueberrySubtractValue = KitakamiDensCount == 25 ? 94 : 95;
+
             if (IsKitakami)
             {
                 return new List<long>(Offsets.RaidBlockPointerK)
@@ -1371,7 +1378,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 return new List<long>(Offsets.RaidBlockPointerB)
                 {
-                    [3] = 0x1968 + ((index - 94) * 0x20)
+                    [3] = 0x1968 + ((index - blueberrySubtractValue) * 0x20)
                 };
             }
             else
@@ -1385,6 +1392,8 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private List<long> DeterminePointer(int index)
         {
+            int blueberrySubtractValue = KitakamiDensCount == 25 ? 93 : 94;
+
             if (index < 69)
             {
                 return new List<long>(Offsets.RaidBlockPointerP)
@@ -1403,7 +1412,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 return new List<long>(Offsets.RaidBlockPointerB)
                 {
-                    [3] = 0x1968 + ((index - 93) * 0x20)
+                    [3] = 0x1968 + ((index - blueberrySubtractValue) * 0x20)
                 };
             }
         }
@@ -2760,6 +2769,16 @@ namespace SysBot.Pokemon.SV.BotRaid
                     totalRaidsProcessed += delivery; // Add the number of invalid delivery group IDs to total raids processed
                 }
             }
+
+            if (mapType == TeraRaidMapParent.Kitakami)
+            {
+                KitakamiDensCount += totalRaidsProcessed;
+            }
+            else if (mapType == TeraRaidMapParent.Blueberry)
+            {
+                BlueberryDensCount += totalRaidsProcessed;
+            }
+
             Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
 
             // Additional logic for Paldea raids
