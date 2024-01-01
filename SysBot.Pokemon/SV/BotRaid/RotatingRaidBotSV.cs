@@ -3031,11 +3031,13 @@ namespace SysBot.Pokemon.SV.BotRaid
             Encounter9RNG.GenerateData(pk, param, EncounterCriteria.Unrestricted, raid.Seed);
             var strings = GameInfo.GetStrings(1);
             var movesList = "";
+            bool hasMoves = false;
             for (int i = 0; i < pk.Moves.Length; i++)
             {
                 if (pk.Moves[i] != 0)
                 {
                     movesList += $"\\- {strings.Move[pk.Moves[i]]}\n";
+                    hasMoves = true;
                 }
             }
             var extraMoves = "";
@@ -3044,9 +3046,13 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (encounter.ExtraMoves[i] != 0)
                 {
                     extraMoves += $"\\- {strings.Move[encounter.ExtraMoves[i]]}\n";
+                    hasMoves = true;
                 }
             }
-            if (!string.IsNullOrEmpty(extraMoves)) movesList += $"**Extra Moves:**\n{extraMoves}";
+            if (!string.IsNullOrEmpty(extraMoves))
+            {
+                movesList += $"**Extra Moves:**\n{extraMoves}";
+            }
             var specialRewards = string.Empty;
 
             try
@@ -3085,7 +3091,15 @@ namespace SysBot.Pokemon.SV.BotRaid
                 x.IsInline = true;
             });
 
-            embed.AddField("**__Moves__**", movesList, true);
+            if (hasMoves)
+            {
+                embed.AddField("**__Moves__**", movesList, true);
+            }
+            else
+            {
+                embed.AddField("**__Moves__**", "No moves available", true);  // Default message
+            }
+
             if (!string.IsNullOrEmpty(specialRewards))
             {
                 embed.AddField("**__Special Rewards__**", specialRewards, true);
