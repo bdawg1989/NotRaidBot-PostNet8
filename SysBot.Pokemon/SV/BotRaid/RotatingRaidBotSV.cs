@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -2630,6 +2631,93 @@ namespace SysBot.Pokemon.SV.BotRaid
             LostRaid = 0;
         }
 
+        private Dictionary<string, float[]> LoadDenLocations(string resourceName)
+        {
+            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName);
+            using var reader = new StreamReader(stream);
+            string json = reader.ReadToEnd();
+            return JsonConvert.DeserializeObject<Dictionary<string, float[]>>(json);
+        }
+
+        private string FindNearestLocation((float, float, float) playerLocation, Dictionary<string, float[]> denLocations)
+        {
+            string nearestDen = null;
+            float minDistance = float.MaxValue;
+
+            foreach (var den in denLocations)
+            {
+                var denLocation = den.Value;
+                float distance = CalculateDistance(playerLocation, (denLocation[0], denLocation[1], denLocation[2]));
+
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    nearestDen = den.Key;
+                }
+            }
+
+            return nearestDen;
+        }
+
+        private float CalculateDistance((float, float, float) loc1, (float, float, float) loc2)
+        {
+            return (float)Math.Sqrt(
+                Math.Pow(loc1.Item1 - loc2.Item1, 2) +
+                Math.Pow(loc1.Item2 - loc2.Item2, 2) +
+                Math.Pow(loc1.Item3 - loc2.Item3, 2));
+        }
+
+        private async Task<(float, float, float)> GetPlayersLocation(CancellationToken token)
+        {
+            // Read the data block (automatically handles encryption)
+            var data = (byte[])await ReadBlock(RaidDataBlocks.KCoordinates, token);
+
+            // Extract coordinates
+            float x = BitConverter.ToSingle(data, 0);
+            float y = BitConverter.ToSingle(data, 4);
+            float z = BitConverter.ToSingle(data, 8);
+
+            return (x, y, z);
+        }
+
+        private async Task LogPlayerLocation(CancellationToken token)
+        {
+            var playerLocation = await GetPlayersLocation(token);
+
+            // Load den locations for all regions
+            var blueberryLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_blueberry.json");
+            var kitakamiLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_kitakami.json");
+            var baseLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_base.json");
+
+            // Find the nearest location for each set and keep track of the overall nearest
+            var nearestDen = new Dictionary<string, string>
+    {
+        { "Blueberry", FindNearestLocation(playerLocation, blueberryLocations) },
+        { "Kitakami", FindNearestLocation(playerLocation, kitakamiLocations) },
+        { "Paldea", FindNearestLocation(playerLocation, baseLocations) }
+    };
+
+            var overallNearest = nearestDen.Select(kv =>
+            {
+                var denLocationArray = kv.Key switch
+                {
+                    "Blueberry" => blueberryLocations[kv.Value],
+                    "Kitakami" => kitakamiLocations[kv.Value],
+                    "Paldea" => baseLocations[kv.Value],
+                    _ => throw new InvalidOperationException("Invalid region")
+                };
+
+                var denLocationTuple = (denLocationArray[0], denLocationArray[1], denLocationArray[2]);
+                return new { Region = kv.Key, Den = kv.Value, Distance = CalculateDistance(playerLocation, denLocationTuple) };
+            })
+            .OrderBy(d => d.Distance)
+            .First();
+
+            Log($"Player is nearest to {overallNearest.Region} den location: {overallNearest.Den}");
+            bool IsKitakami = overallNearest.Region == "Kitakami";
+            bool IsBlueberry = overallNearest.Region == "Blueberry";
+        }
+
         private async Task WriteProgressLive(GameProgress progress)
         {
             if (Connection is null)
@@ -2704,6 +2792,8 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             Log("Getting Raid data...");
             await InitializeRaidBlockPointers(token);
+
+            await LogPlayerLocation(token);
 
             string game = await DetermineGame(token);
             container = new(game);

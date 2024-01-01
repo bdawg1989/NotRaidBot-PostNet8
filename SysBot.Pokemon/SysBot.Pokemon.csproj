@@ -25,4 +25,10 @@
       <HintPath>deps\RaidCrawler.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Include="SV\BotRaid\DenLocations\*.json" />
+	</ItemGroup>
+	<ItemGroup>
+	  <None Remove="SV\BotRaid\DenLocations\test.json" />
+	</ItemGroup>
 </Project>

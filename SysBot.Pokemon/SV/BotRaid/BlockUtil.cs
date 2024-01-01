@@ -120,6 +120,17 @@ namespace SysBot.Pokemon.SV.BotRaid
                 IsEncrypted = true,
                 Size = 1,
             };
+
+            public static readonly DataBlock KCoordinates = new()
+            {
+                Name = "KCoordinates",
+                Key = 0x708D1511,
+                Type = SCTypeCode.Array,
+                SubType = SCTypeCode.Single,
+                Pointer = PokeDataOffsetsSV.SaveBlockKeyPointer,
+                IsEncrypted = true,
+                Size = 0x0000000C,
+            };
         }
     }
 }
