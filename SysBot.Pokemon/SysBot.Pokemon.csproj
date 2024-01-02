@@ -28,7 +28,4 @@
 	<ItemGroup>
 		<EmbeddedResource Include="SV\BotRaid\DenLocations\*.json" />
 	</ItemGroup>
-	<ItemGroup>
-	  <None Remove="SV\BotRaid\DenLocations\test.json" />
-	</ItemGroup>
 </Project>

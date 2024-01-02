@@ -131,6 +131,15 @@ namespace SysBot.Pokemon.SV.BotRaid
                 IsEncrypted = true,
                 Size = 0x0000000C,
             };
+
+            public static DataBlock KPlayerCurrentFieldID = new()
+            {
+                Name = "KPlayerCurrentFieldID",
+                Key = 0xF17EB014, // PlayerSave_CurrentFieldId (0 = Paldea, 1 = Kitakami, 2 = Blueberry)
+                Type = SCTypeCode.SByte,
+                IsEncrypted = true,
+                Size = 1,
+            };
         }
     }
 }
