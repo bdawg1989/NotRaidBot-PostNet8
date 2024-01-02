@@ -2107,12 +2107,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task EnqueueEmbed(List<string>? names, string message, bool hatTrick, bool disband, bool upnext, bool raidstart, CancellationToken token)
         {
-            if (firstRun)
-            {
-                // First Run detected. Not sending the embed to start raid rotation.
-                return;
-            }
-
             string code = string.Empty;
 
             // Determine if the raid is a "Free For All" based on the settings and conditions
@@ -2536,6 +2530,9 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log("Restarting the game!");
 
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
+            await InitializeRaidBlockPointers(token);
+            await LogPlayerLocation(token); // Teleports user to closest Active Den
+            await Task.Delay(0_500, token).ConfigureAwait(false);
 
             if (Settings.ActiveRaids.Count > 1)
             {
@@ -2592,8 +2589,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                         Log("Overworld Spawns are already enabled, no action needed.");
                     }
                 }
-                await LogPlayerLocation(token); // Teleports user to closest Active Den
-                await Task.Delay(0_500, token).ConfigureAwait(false);
                 Log($"Attempting to override seed for {Settings.ActiveRaids[RotationCount].Species}.");
                 await OverrideSeedIndex(SeedIndexToReplace, token).ConfigureAwait(false);
                 Log("Seed override completed.");
@@ -2788,6 +2783,11 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             if (nearestActiveRaid != null)
             {
+                // Set SeedIndexToReplace based on the index of the nearest active raid
+                SeedIndexToReplace = nearestActiveRaid.Raid.Index;
+
+                Log($"Raid Index set to {SeedIndexToReplace} at den: {nearestActiveRaid.Raid.DenIdentifier}");
+
                 // Check if the player is already at the nearest active den
                 float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
 
@@ -2819,7 +2819,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             return true;
         }
 
-        private async Task<List<(string DenIdentifier, float[] Coordinates)>> GetActiveRaidLocations(TeraRaidMapParent mapType, CancellationToken token)
+        private async Task<List<(string DenIdentifier, float[] Coordinates, int Index)>> GetActiveRaidLocations(TeraRaidMapParent mapType, CancellationToken token)
         {
             var raidInfo = await ExtractRaidInfo(mapType, token);
             Dictionary<string, float[]> denLocations = mapType switch
@@ -2830,14 +2830,16 @@ namespace SysBot.Pokemon.SV.BotRaid
                 _ => throw new InvalidOperationException("Invalid region")
             };
 
-            var activeRaids = new List<(string DenIdentifier, float[] Coordinates)>();
+            var activeRaids = new List<(string DenIdentifier, float[] Coordinates, int Index)>();
+            int index = 0;
             foreach (var raid in raidInfo)
             {
                 string raidIdentifier = $"{raid.Area}-{raid.LotteryGroup}-{raid.Den}";
                 if (denLocations.TryGetValue(raidIdentifier, out var coordinates) && IsRaidActive(raid))
                 {
-                    activeRaids.Add((raidIdentifier, coordinates));
+                    activeRaids.Add((raidIdentifier, coordinates, index));
                 }
+                index++;
             }
 
             return activeRaids;
@@ -2917,7 +2919,10 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             Log("Getting Raid data...");
             await InitializeRaidBlockPointers(token);
-
+            if (firstRun)
+            {
+                await LogPlayerLocation(token);
+            }
             string game = await DetermineGame(token);
             container = new(game);
             container.SetGame(game);
@@ -3054,12 +3059,8 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task InitializeRaidBlockPointers(CancellationToken token)
         {
-            if (RaidBlockPointerP == 0)
-                RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
-
-            if (RaidBlockPointerK == 0)
-                RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
-
+            RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
+            RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
         }
 
@@ -3130,11 +3131,16 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allRewards = container.Rewards;
 
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
+            int currentRaidIndex = SeedIndexToReplace;
+
+            // Get the seed for the current raid index
+            uint raidSeedForCurrentIndex = await GetRaidSeed(currentRaidIndex, token);
 
             for (int i = 0; i < allRaids.Count; i++)
             {
                 var (pk, seed) = IsSeedReturned(allEncounters[i], allRaids[i]);
 
+                bool isSeedMatched = false;
                 for (int a = 0; a < Settings.ActiveRaids.Count; a++)
                 {
                     uint set;
@@ -3152,17 +3158,31 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                     if (seed == set)
                     {
-                        var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
-                        RaidEmbedInfo.SpecialRewards = res;
-                        if (string.IsNullOrEmpty(res))
-                            res = string.Empty;
-                        else
-                            res = "**Special Rewards:**\n" + res;
+                        isSeedMatched = true;
+                        // Update Species and SpeciesForm in ActiveRaids
+                        Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
+                        Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
+                        break; // Break if a matching seed is found
+                    }
+                }
 
-                        var areaText = $"{Areas.GetArea((int)(allRaids[i].Area - 1), allRaids[i].MapParent)} - Den {allRaids[i].Den}";
-                        Log($"Seed {seed:X8} found for {(Species)allEncounters[i].Species} in {areaText}");
-                        Settings.ActiveRaids[a].Seed = $"{seed:X8}";
-                        firstRun = false;
+                // Use the seed from GetRaidSeed if no match is found in ActiveRaids
+                if (!isSeedMatched && i == currentRaidIndex)
+                {
+                    seed = raidSeedForCurrentIndex;
+                }
+
+                if (isSeedMatched || i == currentRaidIndex)
+                {
+                    var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
+                    RaidEmbedInfo.SpecialRewards = res;
+                    if (string.IsNullOrEmpty(res))
+                        res = string.Empty;
+                    else
+                        res = "**Special Rewards:**\n" + res;
+
+                    var areaText = $"{Areas.GetArea((int)(allRaids[i].Area - 1), allRaids[i].MapParent)} - Den {allRaids[i].Den}";
+                    Log($"Seed {seed:X8} found for {(Species)allEncounters[i].Species} in {areaText}");
                         var stars = allRaids[i].IsEvent ? allEncounters[i].Stars : allRaids[i].GetStarCount(allRaids[i].Difficulty, StoryProgress, allRaids[i].IsBlack);
                         var encounter = allRaids[i].GetTeraEncounter(container, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
                         var pkinfo = RaidExtensions<PK9>.GetRaidPrintName(pk);
@@ -3190,12 +3210,28 @@ namespace SysBot.Pokemon.SV.BotRaid
                         RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
                         RaidEmbedInfo.ScaleNumber = pk.Scale;
                         RaidEmbedInfo.RaidLevel = encounter.Level;
-                        // Update Species and SpeciesForm in ActiveRaids
-                        Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
-                        Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
                     }
                 }
             }
+
+        private async Task<uint> GetRaidSeed(int index, CancellationToken token)
+        {
+            List<long> pointer = DeterminePointer(index);
+
+            // Read the current seed from the determined pointer
+            var currSeedBytes = await SwitchConnection.PointerPeek(4, pointer, token).ConfigureAwait(false);
+
+            // Convert the byte array to an unsigned integer (considering endianness)
+            uint currSeed = BitConverter.ToUInt32(currSeedBytes, 0);
+            if (BitConverter.IsLittleEndian)
+            {
+                currSeed = BitConverter.ToUInt32(currSeedBytes.Reverse().ToArray(), 0);
+            }
+
+            // Log the current seed
+            // Log($"Current seed at index {index}: {currSeed:X8}");
+
+            return currSeed;
         }
 
         public static (PK9, Embed) RaidInfoCommand(string seedValue, int contentType, TeraRaidMapParent map, int storyProgressLevel, int raidDeliveryGroupID, List<string> rewardsToShow, bool isEvent = false)
