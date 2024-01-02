@@ -26,7 +26,6 @@ namespace SysBot.Pokemon
         public IReadOnlyList<long> RaidBlockPointerB { get; } = new long[] { 0x4741FA0, 0x198, 0x88, 0x1958 };
         public static IReadOnlyList<long> SaveBlockKeyPointer { get; } = new long[] { 0x47350D8, 0xD8, 0x0, 0x0, 0x30, 0x08 }; //TeraFinder 3.0.0
         public IReadOnlyList<long> TeraRaidCodePointer { get; } = new long[] { 0x475EA28, 0x10, 0x78, 0x10, 0x1A9 }; // Zyro 3.0.0
-        public IReadOnlyList<long> TeleporterPointer { get; } = new long[] { 0x4734F78, 0x70, 0x48, 0x0, 0x0, 0x80 }; // Santa 3.0.0
         public ulong TeraLobbyIsConnected { get; } = 0x043DF430; // Zyro 3.0.0
         public ulong LoadedIntoDesiredState { get; } = 0x047D2020; // Zyro 3.0.0
 
