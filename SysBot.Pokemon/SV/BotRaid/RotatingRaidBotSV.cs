@@ -1461,7 +1461,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             if (firstRun)
             {
-                RotationCount = 0;
                 firstRun = false;
             }
 
