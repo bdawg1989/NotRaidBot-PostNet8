@@ -3261,7 +3261,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 // Set SeedIndexToReplace based on the index of the nearest active raid
                 SeedIndexToReplace = nearestActiveRaid.Raid.Index;
-                Log($"Raid Index set to {SeedIndexToReplace} at den: {nearestActiveRaid.Raid.DenIdentifier}");
+                Log($"Player found! Den: {nearestActiveRaid.Raid.DenIdentifier}, Index {SeedIndexToReplace} - in {overallNearest.Region}.");
             }
             else
             {
