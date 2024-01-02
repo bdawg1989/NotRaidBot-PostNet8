@@ -3196,7 +3196,9 @@ namespace SysBot.Pokemon.SV.BotRaid
                         RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
                         RaidEmbedInfo.ScaleNumber = pk.Scale;
                         RaidEmbedInfo.RaidLevel = encounter.Level;
-                    }
+                    Settings.ActiveRaids[currentRaidIndex].Species = (Species)allEncounters[i].Species;
+                    Settings.ActiveRaids[currentRaidIndex].SpeciesForm = allEncounters[i].Form;
+                }
                 }
             }
         private async Task GetCurrentSeedIndex(CancellationToken token)
