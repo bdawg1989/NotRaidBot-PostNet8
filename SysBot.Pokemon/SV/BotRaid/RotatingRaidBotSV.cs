@@ -2916,7 +2916,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             await InitializeRaidBlockPointers(token);
             if (firstRun)
             {
-                await LogPlayerLocation(token);
+                await GetCurrentSeedIndex(token);
             }
             string game = await DetermineGame(token);
             container = new(game);
@@ -3206,7 +3206,68 @@ namespace SysBot.Pokemon.SV.BotRaid
                     }
                 }
             }
+        private async Task GetCurrentSeedIndex(CancellationToken token)
+        {
+            var playerLocation = await GetPlayersLocation(token);
 
+            // Load den locations for all regions
+            var blueberryLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_blueberry.json");
+            var kitakamiLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_kitakami.json");
+            var baseLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_base.json");
+
+            // Determine the nearest location for each set
+            var nearestDen = new Dictionary<string, string>
+    {
+        { "Blueberry", FindNearestLocation(playerLocation, blueberryLocations) },
+        { "Kitakami", FindNearestLocation(playerLocation, kitakamiLocations) },
+        { "Paldea", FindNearestLocation(playerLocation, baseLocations) }
+    };
+
+            // Find the overall nearest den
+            var overallNearest = nearestDen.Select(kv =>
+            {
+                var denLocationArray = kv.Key switch
+                {
+                    "Blueberry" => blueberryLocations[kv.Value],
+                    "Kitakami" => kitakamiLocations[kv.Value],
+                    "Paldea" => baseLocations[kv.Value],
+                    _ => throw new InvalidOperationException("Invalid region")
+                };
+
+                var denLocationTuple = (denLocationArray[0], denLocationArray[1], denLocationArray[2]);
+                return new { Region = kv.Key, DenIdentifier = kv.Value, Distance = CalculateDistance(playerLocation, denLocationTuple) };
+            })
+            .OrderBy(d => d.Distance)
+            .First();
+
+            TeraRaidMapParent mapType = overallNearest.Region switch
+            {
+                "Blueberry" => TeraRaidMapParent.Blueberry,
+                "Kitakami" => TeraRaidMapParent.Kitakami,
+                "Paldea" => TeraRaidMapParent.Paldea,
+                _ => throw new InvalidOperationException("Invalid region")
+            };
+
+            // Get active raids for the nearest region
+            var activeRaids = await GetActiveRaidLocations(mapType, token);
+
+            // Find the nearest active raid
+            var nearestActiveRaid = activeRaids
+                .Select(raid => new { Raid = raid, Distance = CalculateDistance(playerLocation, (raid.Coordinates[0], raid.Coordinates[1], raid.Coordinates[2])) })
+                .OrderBy(raid => raid.Distance)
+                .FirstOrDefault();
+
+            if (nearestActiveRaid != null)
+            {
+                // Set SeedIndexToReplace based on the index of the nearest active raid
+                SeedIndexToReplace = nearestActiveRaid.Raid.Index;
+                Log($"Raid Index set to {SeedIndexToReplace} at den: {nearestActiveRaid.Raid.DenIdentifier}");
+            }
+            else
+            {
+                Log($"No active dens found in {overallNearest.Region}");
+            }
+        }
         private async Task<uint> GetRaidSeed(int index, CancellationToken token)
         {
             List<long> pointer = DeterminePointer(index);
