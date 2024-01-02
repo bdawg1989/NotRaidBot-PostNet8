@@ -1623,40 +1623,33 @@ namespace SysBot.Pokemon.SV.BotRaid
             await Task.Delay(0_500, token).ConfigureAwait(false);
             await Click(HOME, 0_500, token).ConfigureAwait(false);
             await Click(HOME, 0_500, token).ConfigureAwait(false);
-            // Check if firstRun is false before injecting PartyPK
-            if (!firstRun)
-            {
-                var len = string.Empty;
-                foreach (var l in Settings.ActiveRaids[RotationCount].PartyPK)
-                    len += l;
-                if (len.Length > 1 && EmptyRaid == 0)
-                {
-                    Log("Preparing PartyPK. Sit tight.");
-                    await Task.Delay(2_500 + settings.ExtraTimeLobbyDisband, token).ConfigureAwait(false);
-                    await SetCurrentBox(0, token).ConfigureAwait(false);
-                    var res = string.Join("\n", Settings.ActiveRaids[RotationCount].PartyPK);
-                    if (res.Length > 4096)
-                        res = res[..4096];
-                    await InjectPartyPk(res, token).ConfigureAwait(false);
 
-                    await Click(X, 2_000, token).ConfigureAwait(false);
-                    await Click(DRIGHT, 0_500, token).ConfigureAwait(false);
-                    await SetStick(SwitchStick.LEFT, 0, -32000, 1_000, token).ConfigureAwait(false);
-                    await SetStick(SwitchStick.LEFT, 0, 0, 0, token).ConfigureAwait(false);
-                    for (int i = 0; i < 2; i++)
-                        await Click(DDOWN, 0_500, token).ConfigureAwait(false);
-                    await Click(A, 3_500, token).ConfigureAwait(false);
-                    await Click(Y, 0_500, token).ConfigureAwait(false);
-                    await Click(DLEFT, 0_800, token).ConfigureAwait(false);
-                    await Click(Y, 0_500, token).ConfigureAwait(false);
-                    for (int i = 0; i < 2; i++)
-                        await Click(B, 1_500, token).ConfigureAwait(false);
-                    Log("PartyPK switch successful.");
-                }
-            }
-            else
+            var len = string.Empty;
+            foreach (var l in Settings.ActiveRaids[RotationCount].PartyPK)
+                len += l;
+            if (len.Length > 1 && EmptyRaid == 0)
             {
-                Log("First run detected, skipping PartyPK injection.");
+                Log("Preparing PartyPK. Sit tight.");
+                await Task.Delay(2_500 + settings.ExtraTimeLobbyDisband, token).ConfigureAwait(false);
+                await SetCurrentBox(0, token).ConfigureAwait(false);
+                var res = string.Join("\n", Settings.ActiveRaids[RotationCount].PartyPK);
+                if (res.Length > 4096)
+                    res = res[..4096];
+                await InjectPartyPk(res, token).ConfigureAwait(false);
+
+                await Click(X, 2_000, token).ConfigureAwait(false);
+                await Click(DRIGHT, 0_500, token).ConfigureAwait(false);
+                await SetStick(SwitchStick.LEFT, 0, -32000, 1_000, token).ConfigureAwait(false);
+                await SetStick(SwitchStick.LEFT, 0, 0, 0, token).ConfigureAwait(false);
+                for (int i = 0; i < 2; i++)
+                    await Click(DDOWN, 0_500, token).ConfigureAwait(false);
+                await Click(A, 3_500, token).ConfigureAwait(false);
+                await Click(Y, 0_500, token).ConfigureAwait(false);
+                await Click(DLEFT, 0_800, token).ConfigureAwait(false);
+                await Click(Y, 0_500, token).ConfigureAwait(false);
+                for (int i = 0; i < 2; i++)
+                    await Click(B, 1_500, token).ConfigureAwait(false);
+                Log("PartyPK switch successful.");
             }
 
             for (int i = 0; i < 4; i++)
@@ -1685,7 +1678,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             return true;
         }
 
-            private async Task RollBackHour(CancellationToken token)
+        private async Task RollBackHour(CancellationToken token)
         {
             for (int i = 0; i < 2; i++)
                 await Click(B, 0_150, token).ConfigureAwait(false);
