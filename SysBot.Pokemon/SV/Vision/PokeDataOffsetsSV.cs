@@ -19,13 +19,14 @@ namespace SysBot.Pokemon
         public IReadOnlyList<long> IsConnectedPointer { get; } = new long[] { 0x4763E08, 0x10 }; // 3.0.0
         public IReadOnlyList<long> OverworldPointer { get; } = new long[] { 0x473ADE0, 0x160, 0xE8, 0x28 }; // 3.0.0
         // RaidCrawler Offsets
-        public IReadOnlyList<long> BlockKeyPointer { get; } = new long[] { 0x47350D8, 0xD8, 0x0, 0x0, 0x30, 0x0 }; // RaidCrawler Offsets.cs // 3.0.0
+        public IReadOnlyList<long> BlockKeyPointer { get; } = new long[] { 0x47350D8, 0xD8, 0x0, 0x0, 0x30, 0x0 }; // RaidCrawler Offsets.cs 3.0.0
         public IReadOnlyList<long> RaidBlockPointerP { get; } = new long[] { 0x4741FA0, 0x198, 0x88, 0x40 }; // RaidBlockPointerBase RaidCrawler (Can use same as ConfigPointer) 3.0.0
         public IReadOnlyList<long> RaidBlockPointerK { get; } = new long[] { 0x4741FA0, 0x198, 0x88, 0xCD8 }; // RaidBlockPointerK RaidCrawler (Can use same as ConfigPointer) 3.0.0
         // TeraFinder Offsets
         public IReadOnlyList<long> RaidBlockPointerB { get; } = new long[] { 0x4741FA0, 0x198, 0x88, 0x1958 };
-        public static IReadOnlyList<long> SaveBlockKeyPointer { get; } = new long[] { 0x47350D8, 0xD8, 0x0, 0x0, 0x30, 0x08 }; //TeraFinder // 3.0.0
+        public static IReadOnlyList<long> SaveBlockKeyPointer { get; } = new long[] { 0x47350D8, 0xD8, 0x0, 0x0, 0x30, 0x08 }; //TeraFinder 3.0.0
         public IReadOnlyList<long> TeraRaidCodePointer { get; } = new long[] { 0x475EA28, 0x10, 0x78, 0x10, 0x1A9 }; // Zyro 3.0.0
+        public IReadOnlyList<long> TeleporterPointer { get; } = new long[] { 0x4734F78, 0x70, 0x48, 0x0, 0x0, 0x80 }; // Santa 3.0.0
         public ulong TeraLobbyIsConnected { get; } = 0x043DF430; // Zyro 3.0.0
         public ulong LoadedIntoDesiredState { get; } = 0x047D2020; // Zyro 3.0.0
 

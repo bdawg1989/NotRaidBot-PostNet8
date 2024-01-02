@@ -248,7 +248,7 @@ namespace SysBot.Pokemon
                 return await WriteDecryptedBlock((byte[])data!, block, token).ConfigureAwait(false);
         }
 
-        private async Task<bool> WriteEncryptedBlockSafe(DataBlock block, object? toExpect, object toWrite, CancellationToken token)
+        public async Task<bool> WriteEncryptedBlockSafe(DataBlock block, object? toExpect, object toWrite, CancellationToken token)
         {
             if (toExpect == default || toWrite == default)
                 return false;

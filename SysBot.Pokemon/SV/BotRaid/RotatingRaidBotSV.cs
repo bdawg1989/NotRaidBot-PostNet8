@@ -2680,6 +2680,33 @@ namespace SysBot.Pokemon.SV.BotRaid
             return (x, y, z);
         }
 
+        public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
+        {
+            // Convert each float coordinate to a byte array in little-endian format
+            byte[] xBytes = BitConverter.GetBytes(x);
+            byte[] yBytes = BitConverter.GetBytes(y);
+            byte[] zBytes = BitConverter.GetBytes(z);
+
+            // Combine the byte arrays for all coordinates
+            byte[] coordinatesData = new byte[xBytes.Length + yBytes.Length + zBytes.Length];
+            Array.Copy(xBytes, 0, coordinatesData, 0, xBytes.Length);
+            Array.Copy(yBytes, 0, coordinatesData, xBytes.Length, yBytes.Length);
+            Array.Copy(zBytes, 0, coordinatesData, xBytes.Length + yBytes.Length, zBytes.Length);
+
+            // Define the DataBlock for the teleport location
+            var teleportBlock = RaidDataBlocks.KCoordinates;
+            teleportBlock.Size = coordinatesData.Length;
+
+            // Read the current data for comparison (toExpect)
+            var currentData = (byte[])await ReadBlock(teleportBlock, token);
+
+            // Write the coordinates using encrypted block method
+            bool writeSuccess = await WriteEncryptedBlockSafe(teleportBlock, currentData, coordinatesData, token);
+
+            // Log the result of the write operation
+            Log(writeSuccess ? "Coordinate data written successfully." : "Failed to write coordinate data.");
+        }
+
         private async Task LogPlayerLocation(CancellationToken token)
         {
             var playerLocation = await GetPlayersLocation(token);
@@ -2708,15 +2735,75 @@ namespace SysBot.Pokemon.SV.BotRaid
                 };
 
                 var denLocationTuple = (denLocationArray[0], denLocationArray[1], denLocationArray[2]);
-                return new { Region = kv.Key, Den = kv.Value, Distance = CalculateDistance(playerLocation, denLocationTuple) };
+                return new { Region = kv.Key, DenIdentifier = kv.Value, Distance = CalculateDistance(playerLocation, denLocationTuple) };
             })
             .OrderBy(d => d.Distance)
             .First();
 
-            Log($"Player is nearest to {overallNearest.Region} den location: {overallNearest.Den}");
+            TeraRaidMapParent mapType = overallNearest.Region switch
+            {
+                "Blueberry" => TeraRaidMapParent.Blueberry,
+                "Kitakami" => TeraRaidMapParent.Kitakami,
+                "Paldea" => TeraRaidMapParent.Paldea,
+                _ => throw new InvalidOperationException("Invalid region")
+            };
+
+            var activeRaids = await GetActiveRaidsDirectly(mapType, token);
+
+            // Check if the nearest den is active
+            bool isNearestDenActive = activeRaids.Any(raid => $"{raid.Area}-{raid.LotteryGroup}-{raid.Den}" == overallNearest.DenIdentifier);
+
+            if (isNearestDenActive)
+            {
+                var denCoords = overallNearest.Region switch
+                {
+                    "Blueberry" => blueberryLocations[overallNearest.DenIdentifier],
+                    "Kitakami" => kitakamiLocations[overallNearest.DenIdentifier],
+                    "Paldea" => baseLocations[overallNearest.DenIdentifier],
+                    _ => throw new InvalidOperationException("Invalid region")
+                };
+
+                await TeleportToDen(denCoords[0], denCoords[1], denCoords[2], token);
+                Log($"Teleported to nearest active den in {overallNearest.Region}: {overallNearest.DenIdentifier}");
+            }
+            else
+            {
+                Log($"No active dens found in {overallNearest.Region}");
+            }
             bool IsKitakami = overallNearest.Region == "Kitakami";
             bool IsBlueberry = overallNearest.Region == "Blueberry";
         }
+        private async Task<List<Raid>> GetActiveRaidsDirectly(TeraRaidMapParent mapType, CancellationToken token)
+        {
+            byte[] raidData;
+            switch (mapType)
+            {
+                case TeraRaidMapParent.Paldea:
+                    raidData = await ReadPaldeaRaids(token);
+                    break;
+                case TeraRaidMapParent.Kitakami:
+                    raidData = await ReadKitakamiRaids(token);
+                    break;
+                case TeraRaidMapParent.Blueberry:
+                    raidData = await ReadBlueberryRaids(token);
+                    break;
+                default:
+                    throw new InvalidOperationException("Invalid region");
+            }
+
+            var activeRaids = new List<Raid>();
+            for (int i = 0; i < raidData.Length; i += Raid.SIZE)
+            {
+                var raid = new Raid(raidData.AsSpan(i, Raid.SIZE), mapType);
+                if (raid.IsActive)  // Assuming `IsActive` is correctly determining raid activity
+                {
+                    activeRaids.Add(raid);
+                }
+            }
+
+            return activeRaids;
+        }
+
 
         private async Task WriteProgressLive(GameProgress progress)
         {
