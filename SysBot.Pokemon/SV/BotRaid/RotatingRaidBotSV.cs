@@ -5,6 +5,7 @@ using RaidCrawler.Core.Structures;
 using SysBot.Base;
 using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -2591,7 +2592,8 @@ namespace SysBot.Pokemon.SV.BotRaid
                         Log("Overworld Spawns are already enabled, no action needed.");
                     }
                 }
-
+                await LogPlayerLocation(token); // Teleports user to closest Active Den
+                await Task.Delay(0_500, token).ConfigureAwait(false);
                 Log($"Attempting to override seed for {Settings.ActiveRaids[RotationCount].Species}.");
                 await OverrideSeedIndex(SeedIndexToReplace, token).ConfigureAwait(false);
                 Log("Seed override completed.");
@@ -2706,7 +2708,35 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Log the result of the write operation
             Log(writeSuccess ? "Coordinate data written successfully." : "Failed to write coordinate data.");
         }
+        private async Task<List<(uint Area, uint LotteryGroup, uint Den)>> ExtractRaidInfo(TeraRaidMapParent mapType, CancellationToken token)
+        {
+            byte[] raidData;
+            switch (mapType)
+            {
+                case TeraRaidMapParent.Paldea:
+                    raidData = await ReadPaldeaRaids(token);
+                    break;
+                case TeraRaidMapParent.Kitakami:
+                    raidData = await ReadKitakamiRaids(token);
+                    break;
+                case TeraRaidMapParent.Blueberry:
+                    raidData = await ReadBlueberryRaids(token);
+                    break;
+                default:
+                    throw new InvalidOperationException("Invalid region");
+            }
 
+            var raids = new List<(uint Area, uint LotteryGroup, uint Den)>();
+            for (int i = 0; i < raidData.Length; i += Raid.SIZE)
+            {
+                var area = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 4, 4));
+                var lotteryGroup = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 8, 4));
+                var den = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 12, 4));
+                raids.Add((Area: area, LotteryGroup: lotteryGroup, Den: den));
+            }
+
+            return raids;
+        }
         private async Task LogPlayerLocation(CancellationToken token)
         {
             var playerLocation = await GetPlayersLocation(token);
@@ -2748,23 +2778,18 @@ namespace SysBot.Pokemon.SV.BotRaid
                 _ => throw new InvalidOperationException("Invalid region")
             };
 
-            var activeRaids = await GetActiveRaidsDirectly(mapType, token);
+            var activeRaids = await GetActiveRaidLocations(mapType, token);
 
-            // Check if the nearest den is active
-            bool isNearestDenActive = activeRaids.Any(raid => $"{raid.Area}-{raid.LotteryGroup}-{raid.Den}" == overallNearest.DenIdentifier);
+            // Find the nearest active raid, if any
+            var nearestActiveRaid = activeRaids
+                .Select(raid => new { Raid = raid, Distance = CalculateDistance(playerLocation, (raid.Coordinates[0], raid.Coordinates[1], raid.Coordinates[2])) })
+                .OrderBy(raid => raid.Distance)
+                .FirstOrDefault();
 
-            if (isNearestDenActive)
+            if (nearestActiveRaid != null)
             {
-                var denCoords = overallNearest.Region switch
-                {
-                    "Blueberry" => blueberryLocations[overallNearest.DenIdentifier],
-                    "Kitakami" => kitakamiLocations[overallNearest.DenIdentifier],
-                    "Paldea" => baseLocations[overallNearest.DenIdentifier],
-                    _ => throw new InvalidOperationException("Invalid region")
-                };
-
-                await TeleportToDen(denCoords[0], denCoords[1], denCoords[2], token);
-                Log($"Teleported to nearest active den in {overallNearest.Region}: {overallNearest.DenIdentifier}");
+                await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
+                Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
             }
             else
             {
@@ -2773,37 +2798,34 @@ namespace SysBot.Pokemon.SV.BotRaid
             bool IsKitakami = overallNearest.Region == "Kitakami";
             bool IsBlueberry = overallNearest.Region == "Blueberry";
         }
-        private async Task<List<Raid>> GetActiveRaidsDirectly(TeraRaidMapParent mapType, CancellationToken token)
+        private bool IsRaidActive((uint Area, uint LotteryGroup, uint Den) raid)
         {
-            byte[] raidData;
-            switch (mapType)
-            {
-                case TeraRaidMapParent.Paldea:
-                    raidData = await ReadPaldeaRaids(token);
-                    break;
-                case TeraRaidMapParent.Kitakami:
-                    raidData = await ReadKitakamiRaids(token);
-                    break;
-                case TeraRaidMapParent.Blueberry:
-                    raidData = await ReadBlueberryRaids(token);
-                    break;
-                default:
-                    throw new InvalidOperationException("Invalid region");
-            }
+            return true;
+        }
 
-            var activeRaids = new List<Raid>();
-            for (int i = 0; i < raidData.Length; i += Raid.SIZE)
+        private async Task<List<(string DenIdentifier, float[] Coordinates)>> GetActiveRaidLocations(TeraRaidMapParent mapType, CancellationToken token)
+        {
+            var raidInfo = await ExtractRaidInfo(mapType, token);
+            Dictionary<string, float[]> denLocations = mapType switch
             {
-                var raid = new Raid(raidData.AsSpan(i, Raid.SIZE), mapType);
-                if (raid.IsActive)  // Assuming `IsActive` is correctly determining raid activity
+                TeraRaidMapParent.Paldea => LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_base.json"),
+                TeraRaidMapParent.Kitakami => LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_kitakami.json"),
+                TeraRaidMapParent.Blueberry => LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_blueberry.json"),
+                _ => throw new InvalidOperationException("Invalid region")
+            };
+
+            var activeRaids = new List<(string DenIdentifier, float[] Coordinates)>();
+            foreach (var raid in raidInfo)
+            {
+                string raidIdentifier = $"{raid.Area}-{raid.LotteryGroup}-{raid.Den}";
+                if (denLocations.TryGetValue(raidIdentifier, out var coordinates) && IsRaidActive(raid))
                 {
-                    activeRaids.Add(raid);
+                    activeRaids.Add((raidIdentifier, coordinates));
                 }
             }
 
             return activeRaids;
         }
-
 
         private async Task WriteProgressLive(GameProgress progress)
         {
@@ -2879,8 +2901,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             Log("Getting Raid data...");
             await InitializeRaidBlockPointers(token);
-
-            await LogPlayerLocation(token);
 
             string game = await DetermineGame(token);
             container = new(game);
