@@ -1461,6 +1461,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             if (firstRun)
             {
+                RotationCount = 0;
                 firstRun = false;
             }
 
@@ -2770,11 +2771,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             if (nearestActiveRaid != null)
             {
-                // Set SeedIndexToReplace based on the index of the nearest active raid
-                SeedIndexToReplace = nearestActiveRaid.Raid.Index;
-
-                Log($"Raid Index set to {SeedIndexToReplace} in {overallNearest.Region}.");
-
                 // Check if the player is already at the nearest active den
                 float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
 
@@ -3146,17 +3142,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                     if (seed == set)
                     {
                         isSeedMatched = true;
+                        // Update Species and SpeciesForm in ActiveRaids
+                        Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
+                        Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
                         break; // Break if a matching seed is found
                     }
                 }
 
-                // Update Species and SpeciesForm in ActiveRaids for the raid at currentRaidIndex
-                if (i == currentRaidIndex)
-                {
-                    Settings.ActiveRaids[currentRaidIndex].Species = (Species)allEncounters[i].Species;
-                    Settings.ActiveRaids[currentRaidIndex].SpeciesForm = allEncounters[i].Form;
-                }
-
+                // Process raid information
                 if (isSeedMatched || i == currentRaidIndex)
                 {
                     var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
@@ -3168,38 +3161,36 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                     var areaText = $"{Areas.GetArea((int)(allRaids[i].Area - 1), allRaids[i].MapParent)} - Den {allRaids[i].Den}";
                     Log($"Seed {seed:X8} found for {(Species)allEncounters[i].Species} in {areaText}");
-                        var stars = allRaids[i].IsEvent ? allEncounters[i].Stars : allRaids[i].GetStarCount(allRaids[i].Difficulty, StoryProgress, allRaids[i].IsBlack);
-                        var encounter = allRaids[i].GetTeraEncounter(container, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
-                        var pkinfo = RaidExtensions<PK9>.GetRaidPrintName(pk);
-                        var strings = GameInfo.GetStrings(1);
-                        var moves = new ushort[4] { allEncounters[i].Move1, allEncounters[i].Move2, allEncounters[i].Move3, allEncounters[i].Move4 };
-                        var movestr = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}ㅤ{Environment.NewLine}")).TrimEnd(Environment.NewLine.ToCharArray());
-                        var extramoves = string.Empty;
+                    var stars = allRaids[i].IsEvent ? allEncounters[i].Stars : allRaids[i].GetStarCount(allRaids[i].Difficulty, StoryProgress, allRaids[i].IsBlack);
+                    var encounter = allRaids[i].GetTeraEncounter(container, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
+                    var pkinfo = RaidExtensions<PK9>.GetRaidPrintName(pk);
+                    var strings = GameInfo.GetStrings(1);
+                    var moves = new ushort[4] { allEncounters[i].Move1, allEncounters[i].Move2, allEncounters[i].Move3, allEncounters[i].Move4 };
+                    var movestr = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}ㅤ{Environment.NewLine}")).TrimEnd(Environment.NewLine.ToCharArray());
+                    var extramoves = string.Empty;
 
-                        if (allEncounters[i].ExtraMoves.Length != 0)
-                        {
-                            var extraMovesList = allEncounters[i].ExtraMoves.Where(z => z != 0).Select(z => $"{strings.Move[z]}\n");
-                            extramoves = string.Concat(extraMovesList.Take(extraMovesList.Count()));
-                            RaidEmbedInfo.ExtraMoves = extramoves;
-                        }
+                    if (allEncounters[i].ExtraMoves.Length != 0)
+                    {
+                        var extraMovesList = allEncounters[i].ExtraMoves.Where(z => z != 0).Select(z => $"{strings.Move[z]}\n");
+                        extramoves = string.Concat(extraMovesList.Take(extraMovesList.Count()));
+                        RaidEmbedInfo.ExtraMoves = extramoves;
+                    }
 
-                        var titlePrefix = allRaids[i].IsShiny ? "Shiny" : "";
-                        RaidEmbedInfo.RaidSpecies = (Species)allEncounters[i].Species;
-                        RaidEmbedInfo.RaidEmbedTitle = $"{stars} ★ {titlePrefix} {(Species)allEncounters[i].Species}{pkinfo}";
-                        RaidEmbedInfo.RaidSpeciesGender = $"{(pk.Gender == 0 ? "Male" : pk.Gender == 1 ? "Female" : "Genderless")}";
-                        RaidEmbedInfo.RaidSpeciesNature = GameInfo.Strings.Natures[pk.Nature];
-                        RaidEmbedInfo.RaidSpeciesAbility = $"{(Ability)pk.Ability}";
-                        RaidEmbedInfo.RaidSpeciesIVs = $"{pk.IV_HP}/{pk.IV_ATK}/{pk.IV_DEF}/{pk.IV_SPA}/{pk.IV_SPD}/{pk.IV_SPE}";
-                        RaidEmbedInfo.RaidSpeciesTeraType = $"{(MoveType)allRaids[i].GetTeraType(encounter)}";
-                        RaidEmbedInfo.Moves = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}\n")).TrimEnd(Environment.NewLine.ToCharArray());
-                        RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
-                        RaidEmbedInfo.ScaleNumber = pk.Scale;
-                        RaidEmbedInfo.RaidLevel = encounter.Level;
-                    Settings.ActiveRaids[currentRaidIndex].Species = (Species)allEncounters[i].Species;
-                    Settings.ActiveRaids[currentRaidIndex].SpeciesForm = allEncounters[i].Form;
-                }
+                    var titlePrefix = allRaids[i].IsShiny ? "Shiny" : "";
+                    RaidEmbedInfo.RaidSpecies = (Species)allEncounters[i].Species;
+                    RaidEmbedInfo.RaidEmbedTitle = $"{stars} ★ {titlePrefix} {(Species)allEncounters[i].Species}{pkinfo}";
+                    RaidEmbedInfo.RaidSpeciesGender = $"{(pk.Gender == 0 ? "Male" : pk.Gender == 1 ? "Female" : "Genderless")}";
+                    RaidEmbedInfo.RaidSpeciesNature = GameInfo.Strings.Natures[pk.Nature];
+                    RaidEmbedInfo.RaidSpeciesAbility = $"{(Ability)pk.Ability}";
+                    RaidEmbedInfo.RaidSpeciesIVs = $"{pk.IV_HP}/{pk.IV_ATK}/{pk.IV_DEF}/{pk.IV_SPA}/{pk.IV_SPD}/{pk.IV_SPE}";
+                    RaidEmbedInfo.RaidSpeciesTeraType = $"{(MoveType)allRaids[i].GetTeraType(encounter)}";
+                    RaidEmbedInfo.Moves = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}\n")).TrimEnd(Environment.NewLine.ToCharArray());
+                    RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
+                    RaidEmbedInfo.ScaleNumber = pk.Scale;
+                    RaidEmbedInfo.RaidLevel = encounter.Level;
                 }
             }
+        }
         private async Task GetCurrentSeedIndex(CancellationToken token)
         {
             var playerLocation = await GetPlayersLocation(token);
@@ -3217,7 +3208,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         { "Paldea", FindNearestLocation(playerLocation, baseLocations) }
     };
 
-            // Find the overall nearest den
             var overallNearest = nearestDen.Select(kv =>
             {
                 var denLocationArray = kv.Key switch
@@ -3234,6 +3224,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             .OrderBy(d => d.Distance)
             .First();
 
+            // Convert the region string to TeraRaidMapParent enum
             TeraRaidMapParent mapType = overallNearest.Region switch
             {
                 "Blueberry" => TeraRaidMapParent.Blueberry,
@@ -3253,8 +3244,19 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             if (nearestActiveRaid != null)
             {
-                // Set SeedIndexToReplace based on the index of the nearest active raid
-                SeedIndexToReplace = nearestActiveRaid.Raid.Index;
+                // Adjust the index based on the region
+                int adjustedIndex = nearestActiveRaid.Raid.Index;
+                if (overallNearest.Region == "Kitakami")
+                {
+                    adjustedIndex += 69; // Kitakami starts at 70
+                }
+                else if (overallNearest.Region == "Blueberry")
+                {
+                    adjustedIndex += (KitakamiDensCount == 25 ? 94 : 95); // Adjust for Blueberry start index
+                }
+                // Paldea's index is already correct (0-69)
+
+                SeedIndexToReplace = adjustedIndex;
                 Log($"Player found! Den: {nearestActiveRaid.Raid.DenIdentifier}, Index {SeedIndexToReplace} - in {overallNearest.Region}.");
             }
             else
@@ -3262,6 +3264,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"No active dens found in {overallNearest.Region}");
             }
         }
+
         private async Task<uint> GetRaidSeed(int index, CancellationToken token)
         {
             List<long> pointer = DeterminePointer(index);
