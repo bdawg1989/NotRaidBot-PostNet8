@@ -2786,24 +2786,24 @@ namespace SysBot.Pokemon.SV.BotRaid
                 // Set SeedIndexToReplace based on the index of the nearest active raid
                 SeedIndexToReplace = nearestActiveRaid.Raid.Index;
 
-                Log($"Raid Index set to {SeedIndexToReplace} at den: {nearestActiveRaid.Raid.DenIdentifier}");
+                Log($"Raid Index set to {SeedIndexToReplace} in {overallNearest.Region}.");
 
                 // Check if the player is already at the nearest active den
                 float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
 
                 // Define a threshold for how close the player needs to be to be considered "at" the den
-                const float threshold = 2.4f;
+                const float threshold = 1.0f;
 
                 if (distanceToNearestActiveDen > threshold)
                 {
                     // Player is not at the den, so teleport
                     await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
-                    Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
+                    Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} in {overallNearest.Region}.");
                 }
                 else
                 {
                     // Player is already at the den
-                    Log($"Already at the nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
+                  //  Log($"Already at the nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
                 }
             }
             else
