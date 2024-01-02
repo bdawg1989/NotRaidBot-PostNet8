@@ -3159,17 +3159,15 @@ namespace SysBot.Pokemon.SV.BotRaid
                     if (seed == set)
                     {
                         isSeedMatched = true;
-                        // Update Species and SpeciesForm in ActiveRaids
-                        Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
-                        Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
                         break; // Break if a matching seed is found
                     }
                 }
 
-                // Use the seed from GetRaidSeed if no match is found in ActiveRaids
-                if (!isSeedMatched && i == currentRaidIndex)
+                // Update Species and SpeciesForm in ActiveRaids for the raid at currentRaidIndex
+                if (i == currentRaidIndex)
                 {
-                    seed = raidSeedForCurrentIndex;
+                    Settings.ActiveRaids[currentRaidIndex].Species = (Species)allEncounters[i].Species;
+                    Settings.ActiveRaids[currentRaidIndex].SpeciesForm = allEncounters[i].Form;
                 }
 
                 if (isSeedMatched || i == currentRaidIndex)
