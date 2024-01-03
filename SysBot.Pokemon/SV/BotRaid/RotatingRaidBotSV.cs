@@ -2779,7 +2779,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
 
                 // Define a threshold for how close the player needs to be to be considered "at" the den
-                const float threshold = 1.0f;
+                const float threshold = 1.4f;
 
                 if (distanceToNearestActiveDen > threshold)
                 {
@@ -3226,8 +3226,8 @@ namespace SysBot.Pokemon.SV.BotRaid
                     RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
                     RaidEmbedInfo.ScaleNumber = pk.Scale;
                     RaidEmbedInfo.RaidLevel = encounter.Level;
-                    Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
-                    Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
+                    Settings.ActiveRaids[RotationCount].Species = (Species)allEncounters[i].Species;
+                    Settings.ActiveRaids[RotationCount].SpeciesForm = allEncounters[i].Form;
                 }
             }
         }
