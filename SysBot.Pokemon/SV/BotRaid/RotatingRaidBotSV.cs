@@ -1662,7 +1662,12 @@ namespace SysBot.Pokemon.SV.BotRaid
             await Click(A, 3_000, token).ConfigureAwait(false);
             await Click(A, 3_000, token).ConfigureAwait(false);
 
-            if (!Settings.ActiveRaids[RotationCount].IsCoded || (Settings.ActiveRaids[RotationCount].IsCoded && EmptyRaid == Settings.LobbyOptions.EmptyRaidLimit && Settings.LobbyOptions.LobbyMethod == LobbyMethodOptions.OpenLobby))
+            if (firstRun)
+            {
+                Log("First Run detected. Opening Lobby up to all to start raid rotation.");
+                await Click(DDOWN, 1_000, token).ConfigureAwait(false);
+            }
+            else if (!Settings.ActiveRaids[RotationCount].IsCoded || (Settings.ActiveRaids[RotationCount].IsCoded && EmptyRaid == Settings.LobbyOptions.EmptyRaidLimit && Settings.LobbyOptions.LobbyMethod == LobbyMethodOptions.OpenLobby))
             {
                 if (Settings.ActiveRaids[RotationCount].IsCoded && EmptyRaid == Settings.LobbyOptions.EmptyRaidLimit && Settings.LobbyOptions.LobbyMethod == LobbyMethodOptions.OpenLobby)
                     Log($"We had {Settings.LobbyOptions.EmptyRaidLimit} empty raids.. Opening this raid to all!");
@@ -2519,7 +2524,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
             await InitializeRaidBlockPointers(token);
             await LogPlayerLocation(token); // Teleports user to closest Active Den
-            await Task.Delay(0_500, token).ConfigureAwait(false);
 
             if (Settings.ActiveRaids.Count > 1)
             {
@@ -2664,35 +2668,60 @@ namespace SysBot.Pokemon.SV.BotRaid
             return (x, y, z);
         }
 
+        /*
+        private async Task LogCurrentRotation(CancellationToken token)
+        {
+            // Read the rotation data block
+            var rotationData = (byte[])await ReadBlock(RaidDataBlocks.KPlayerRotation, token);
+
+            // Extract the rotation values
+            float rx = BitConverter.ToSingle(rotationData, 0);
+            float ry = BitConverter.ToSingle(rotationData, 4);
+            float rz = BitConverter.ToSingle(rotationData, 8);
+            float rw = BitConverter.ToSingle(rotationData, 12);
+
+            // Log the rotation values
+            Log($"Current Rotation: RX={rx}, RY={ry}, RZ={rz}, RW={rw}");
+        } */
+
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
-            const float offset = 0.8f; // Adjust this value as needed to get us out of the center of den
-
+            const float offset = 1.4f; 
             x += offset;
 
-            // Convert each float coordinate to a byte array in little-endian format
+            // Convert coordinates to byte array
             byte[] xBytes = BitConverter.GetBytes(x);
             byte[] yBytes = BitConverter.GetBytes(y);
             byte[] zBytes = BitConverter.GetBytes(z);
-
-            // Combine the byte arrays for all coordinates
             byte[] coordinatesData = new byte[xBytes.Length + yBytes.Length + zBytes.Length];
             Array.Copy(xBytes, 0, coordinatesData, 0, xBytes.Length);
             Array.Copy(yBytes, 0, coordinatesData, xBytes.Length, yBytes.Length);
             Array.Copy(zBytes, 0, coordinatesData, xBytes.Length + yBytes.Length, zBytes.Length);
 
-            // Define the DataBlock for the teleport location
+            // Write the coordinates
             var teleportBlock = RaidDataBlocks.KCoordinates;
             teleportBlock.Size = coordinatesData.Length;
+            var currentCoordinateData = (byte[])await ReadBlock(teleportBlock, token);
+            bool writeCoordinateSuccess = await WriteEncryptedBlockSafe(teleportBlock, currentCoordinateData, coordinatesData, token);
 
-            // Read the current data for comparison (toExpect)
-            var currentData = (byte[])await ReadBlock(teleportBlock, token);
+            // Set rotation to face North
+            float northRX = 0.0f;
+            float northRY = -0.63828725f;
+            float northRZ = 0.0f;
+            float northRW = 0.7697983f;
 
-            // Write the coordinates using encrypted block method
-            bool writeSuccess = await WriteEncryptedBlockSafe(teleportBlock, currentData, coordinatesData, token);
+            // Convert rotation to byte array
+            byte[] rotationData = new byte[16];
+            Buffer.BlockCopy(BitConverter.GetBytes(northRX), 0, rotationData, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(northRY), 0, rotationData, 4, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(northRZ), 0, rotationData, 8, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(northRW), 0, rotationData, 12, 4);
 
-            // Log the result of the write operation
-            Log(writeSuccess ? "" : "Failed to write coordinate data.");
+            // Write the rotation
+            var rotationBlock = RaidDataBlocks.KPlayerRotation;
+            rotationBlock.Size = rotationData.Length;
+            var currentRotationData = (byte[])await ReadBlock(rotationBlock, token);
+            bool writeRotationSuccess = await WriteEncryptedBlockSafe(rotationBlock, currentRotationData, rotationData, token);
         }
 
         private async Task<List<(uint Area, uint LotteryGroup, uint Den, uint Seed)>> ExtractRaidInfo(TeraRaidMapParent mapType, CancellationToken token)
@@ -2781,12 +2810,12 @@ namespace SysBot.Pokemon.SV.BotRaid
                 float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
 
                 // Define a threshold for how close the player needs to be to be considered "at" the den
-                const float threshold = 1.4f;
+                const float threshold = 1.6f;
 
                 uint denSeed = nearestActiveRaid.Raid.Seed;
-                string hexDenSeed = denSeed.ToString("X8"); // Convert to hexadecimal format
-                denHexSeed = hexDenSeed; // Store the hexadecimal seed as a string
-                Log($"Seed: {hexDenSeed} Nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
+                string hexDenSeed = denSeed.ToString("X8"); 
+                denHexSeed = hexDenSeed; 
+                // Log($"Seed: {hexDenSeed} Nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
 
                 if (distanceToNearestActiveDen > threshold)
                 {
@@ -2795,7 +2824,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                     {
                         // Player is not at the den, so teleport
                         await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
-                        Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed:{nearestActiveRaid.Raid.Seed} in {overallNearest.Region}.");
+                        Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
                     }
                 }
                 else
@@ -2919,7 +2948,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             await InitializeRaidBlockPointers(token);
             if (firstRun)
             {
-                await LogPlayerLocation(token);
+                await LogPlayerLocation(token); // Get seed from current den for processing
             }
             string game = await DetermineGame(token);
             container = new(game);
@@ -3127,10 +3156,16 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allRaids = container.Raids;
             var allEncounters = container.Encounters;
             var allRewards = container.Rewards;
+
+            string originalSeedString = ""; // Store the original seed as a string
+
             if (firstRun)
             {
+                // Store the original seed from ActiveRaids[0]
+                originalSeedString = Settings.ActiveRaids[0].Seed; // Store it as a string
                 Settings.ActiveRaids[0].Seed = denHexSeed;
             }
+
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
 
             for (int i = 0; i < allRaids.Count; i++)
@@ -3194,6 +3229,13 @@ namespace SysBot.Pokemon.SV.BotRaid
                         Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
                         Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
                     }
+                }
+            }
+            if (firstRun)
+            {
+                if (uint.TryParse(originalSeedString, NumberStyles.AllowHexSpecifier, null, out uint originalSeed))
+                {
+                    Settings.ActiveRaids[0].Seed = originalSeed.ToString("X8"); // Put users original seed back 
                 }
             }
         }

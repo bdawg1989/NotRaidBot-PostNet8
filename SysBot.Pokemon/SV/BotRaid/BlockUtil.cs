@@ -132,6 +132,17 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Size = 0x0000000C,
             };
 
+            public static readonly DataBlock KPlayerRotation = new()
+            {
+                Name = "KPlayerRotation",
+                Key = 0x31EF132C,
+                Type = SCTypeCode.Array,
+                SubType = SCTypeCode.Single,
+                Pointer = PokeDataOffsetsSV.SaveBlockKeyPointer,
+                IsEncrypted = true,
+                Size = 0x00000010,
+            };
+
             public static DataBlock KPlayerCurrentFieldID = new()
             {
                 Name = "KPlayerCurrentFieldID",
