@@ -569,7 +569,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log($"Index not located.");
         }
 
-
         private async Task CompleteRaid(CancellationToken token)
         {
             var trainers = new List<(ulong, RaidMyStatus)>();
@@ -2667,6 +2666,10 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
+            const float offset = 1.4f; // Adjust this value as needed to get us out of the center of den
+
+            x += offset;
+
             // Convert each float coordinate to a byte array in little-endian format
             byte[] xBytes = BitConverter.GetBytes(x);
             byte[] yBytes = BitConverter.GetBytes(y);
@@ -2691,6 +2694,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Log the result of the write operation
             Log(writeSuccess ? "Coordinate data written successfully." : "Failed to write coordinate data.");
         }
+
         private async Task<List<(uint Area, uint LotteryGroup, uint Den)>> ExtractRaidInfo(TeraRaidMapParent mapType, CancellationToken token)
         {
             byte[] raidData;
@@ -2980,7 +2984,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 BlueberryDensCount += totalRaidsProcessed;
             }
 
-            Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
+            // Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
 
             // Additional logic for Paldea raids
             if (mapType == TeraRaidMapParent.Paldea)
@@ -3114,16 +3118,12 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allRewards = container.Rewards;
 
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
-            int currentRaidIndex = SeedIndexToReplace;
-
-            // Get the seed for the current raid index
-            uint raidSeedForCurrentIndex = await GetRaidSeed(currentRaidIndex, token);
 
             for (int i = 0; i < allRaids.Count; i++)
             {
                 var (pk, seed) = IsSeedReturned(allEncounters[i], allRaids[i]);
+                bool seedFound = false;
 
-                bool isSeedMatched = false;
                 for (int a = 0; a < Settings.ActiveRaids.Count; a++)
                 {
                     uint set;
@@ -3135,23 +3135,61 @@ namespace SysBot.Pokemon.SV.BotRaid
                     {
                         Log($"Invalid seed format detected. Removing {Settings.ActiveRaids[a].Seed} from list.");
                         Settings.ActiveRaids.RemoveAt(a);
-                        a--;  // Decrement the index so that it does not skip the next element.
-                        continue;  // Skip to the next iteration.
+                        a--; // Decrement the index so that it does not skip the next element.
+                        continue; // Skip to the next iteration.
                     }
 
                     if (seed == set)
                     {
-                        isSeedMatched = true;
+                        seedFound = true;
+                        var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
+                        RaidEmbedInfo.SpecialRewards = res;
+                        if (string.IsNullOrEmpty(res))
+                            res = string.Empty;
+                        else
+                            res = "**Special Rewards:**\n" + res;
+
+                        var areaText = $"{Areas.GetArea((int)(allRaids[i].Area - 1), allRaids[i].MapParent)} - Den {allRaids[i].Den}";
+                        Log($"Seed {seed:X8} found for {(Species)allEncounters[i].Species} in {areaText}");
+                        firstRun = false;
+                        var stars = allRaids[i].IsEvent ? allEncounters[i].Stars : allRaids[i].GetStarCount(allRaids[i].Difficulty, StoryProgress, allRaids[i].IsBlack);
+                        var encounter = allRaids[i].GetTeraEncounter(container, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
+                        var pkinfo = RaidExtensions<PK9>.GetRaidPrintName(pk);
+                        var strings = GameInfo.GetStrings(1);
+                        var moves = new ushort[4] { allEncounters[i].Move1, allEncounters[i].Move2, allEncounters[i].Move3, allEncounters[i].Move4 };
+                        var movestr = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}ㅤ{Environment.NewLine}")).TrimEnd(Environment.NewLine.ToCharArray());
+                        var extramoves = string.Empty;
+
+                        if (allEncounters[i].ExtraMoves.Length != 0)
+                        {
+                            var extraMovesList = allEncounters[i].ExtraMoves.Where(z => z != 0).Select(z => $"{strings.Move[z]}\n");
+                            extramoves = string.Concat(extraMovesList.Take(extraMovesList.Count()));
+                            RaidEmbedInfo.ExtraMoves = extramoves;
+                        }
+
+                        var titlePrefix = allRaids[i].IsShiny ? "Shiny" : "";
+                        RaidEmbedInfo.RaidSpecies = (Species)allEncounters[i].Species;
+                        RaidEmbedInfo.RaidEmbedTitle = $"{stars} ★ {titlePrefix} {(Species)allEncounters[i].Species}{pkinfo}";
+                        RaidEmbedInfo.RaidSpeciesGender = $"{(pk.Gender == 0 ? "Male" : pk.Gender == 1 ? "Female" : "Genderless")}";
+                        RaidEmbedInfo.RaidSpeciesNature = GameInfo.Strings.Natures[pk.Nature];
+                        RaidEmbedInfo.RaidSpeciesAbility = $"{(Ability)pk.Ability}";
+                        RaidEmbedInfo.RaidSpeciesIVs = $"{pk.IV_HP}/{pk.IV_ATK}/{pk.IV_DEF}/{pk.IV_SPA}/{pk.IV_SPD}/{pk.IV_SPE}";
+                        RaidEmbedInfo.RaidSpeciesTeraType = $"{(MoveType)allRaids[i].GetTeraType(encounter)}";
+                        RaidEmbedInfo.Moves = movestr;
+                        RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
+                        RaidEmbedInfo.ScaleNumber = pk.Scale;
+                        RaidEmbedInfo.RaidLevel = encounter.Level;
                         // Update Species and SpeciesForm in ActiveRaids
                         Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
                         Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
-                        break; // Break if a matching seed is found
+                        break; // Break out of the for-loop once a match is found
                     }
                 }
 
-                // Process raid information
-                if (isSeedMatched || i == currentRaidIndex)
+                // If this is the first run and the seed wasn't found in ActiveRaids
+                if (firstRun && !seedFound && i == SeedIndexToReplace)
                 {
+                    seed = await GetRaidSeed(i, token);
                     var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
                     RaidEmbedInfo.SpecialRewards = res;
                     if (string.IsNullOrEmpty(res))
@@ -3184,13 +3222,16 @@ namespace SysBot.Pokemon.SV.BotRaid
                     RaidEmbedInfo.RaidSpeciesAbility = $"{(Ability)pk.Ability}";
                     RaidEmbedInfo.RaidSpeciesIVs = $"{pk.IV_HP}/{pk.IV_ATK}/{pk.IV_DEF}/{pk.IV_SPA}/{pk.IV_SPD}/{pk.IV_SPE}";
                     RaidEmbedInfo.RaidSpeciesTeraType = $"{(MoveType)allRaids[i].GetTeraType(encounter)}";
-                    RaidEmbedInfo.Moves = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}\n")).TrimEnd(Environment.NewLine.ToCharArray());
+                    RaidEmbedInfo.Moves = movestr;
                     RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
                     RaidEmbedInfo.ScaleNumber = pk.Scale;
                     RaidEmbedInfo.RaidLevel = encounter.Level;
+                    Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
+                    Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
                 }
             }
         }
+
         private async Task GetCurrentSeedIndex(CancellationToken token)
         {
             var playerLocation = await GetPlayersLocation(token);
@@ -3249,15 +3290,18 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (overallNearest.Region == "Kitakami")
                 {
                     adjustedIndex += 69; // Kitakami starts at 70
+                    IsKitakami = true;
                 }
                 else if (overallNearest.Region == "Blueberry")
                 {
-                    adjustedIndex += (KitakamiDensCount == 25 ? 94 : 95); // Adjust for Blueberry start index
+                    int upperBound = KitakamiDensCount == 25 ? 94 : 95;
+                    adjustedIndex += upperBound; // Adjust for Blueberry start index
+                    IsBlueberry = true;
                 }
                 // Paldea's index is already correct (0-69)
 
                 SeedIndexToReplace = adjustedIndex;
-                Log($"Player found! Den: {nearestActiveRaid.Raid.DenIdentifier}, Index {SeedIndexToReplace} - in {overallNearest.Region}.");
+                Log($"Player found! Den: {nearestActiveRaid.Raid.DenIdentifier}, Index {SeedIndexToReplace + 1:00} - in {overallNearest.Region}.");
             }
             else
             {
@@ -3272,12 +3316,8 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Read the current seed from the determined pointer
             var currSeedBytes = await SwitchConnection.PointerPeek(4, pointer, token).ConfigureAwait(false);
 
-            // Convert the byte array to an unsigned integer (considering endianness)
+            // Convert the byte array to an unsigned integer
             uint currSeed = BitConverter.ToUInt32(currSeedBytes, 0);
-            if (BitConverter.IsLittleEndian)
-            {
-                currSeed = BitConverter.ToUInt32(currSeedBytes.Reverse().ToArray(), 0);
-            }
 
             // Log the current seed
             // Log($"Current seed at index {index}: {currSeed:X8}");
