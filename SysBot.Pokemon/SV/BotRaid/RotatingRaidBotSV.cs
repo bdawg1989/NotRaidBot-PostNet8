@@ -317,12 +317,11 @@ namespace SysBot.Pokemon.SV.BotRaid
             bool partyReady;
             List<(ulong, RaidMyStatus)> lobbyTrainers;
             StartTime = DateTime.Now;
-            var dayRoll = 0;
             RotationCount = 0;
             var raidsHosted = 0;
+
             while (!token.IsCancellationRequested)
             {
-
                 // Initialize offsets at the start of the routine and cache them.
                 await InitializeSessionOffsets(token).ConfigureAwait(false);
                 if (RaidCount == 0)
@@ -341,83 +340,20 @@ namespace SysBot.Pokemon.SV.BotRaid
                     if (TodaySeed != currentSeed)
                     {
                         Log($"Current Today Seed {currentSeed:X8} does not match Starting Today Seed: {TodaySeed:X8}.\nAttempting to override Today Seed...");
-                        TodaySeed = currentSeed;  // Update the TodaySeed to the currentSeed
-                        await OverrideTodaySeed(token).ConfigureAwait(false); // Override the Today Seed in the game to match the currentSeed
+                        TodaySeed = currentSeed;
+                        await OverrideTodaySeed(token).ConfigureAwait(false);
                         Log("Today Seed has been overridden with the current seed.");
                     }
 
                     if (LobbyError >= 2)
                     {
-                        msg = $"Failed to create a lobby {LobbyError} times.\n ";
-                        dayRoll++;
+                        msg = $"Failed to create a lobby {LobbyError} times.\n";
+                        Log(msg);
+                        await CloseGame(Hub.Config, token).ConfigureAwait(false);
+                        await StartGameRaid(Hub.Config, token).ConfigureAwait(false);
+                        LobbyError = 0;
+                        continue;
                     }
-
-                    if (dayRoll != 0 && SeedIndexToReplace != -1 && RaidCount != 0)
-                    {
-                        Log(msg + "Raid Lost initiating recovery sequence.");
-                        bool denFound = false;
-                        while (!denFound)
-                        {
-                            await Click(B, 0_500, token).ConfigureAwait(false);
-                            await Click(HOME, 3_500, token).ConfigureAwait(false);
-                            Log("Closed out of the game!");
-
-                            await RolloverCorrectionSV(token).ConfigureAwait(false);
-                            await Click(A, 1_500, token).ConfigureAwait(false);
-                            Log("Back in the game!");
-
-                            while (!await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
-                            {
-                                Log("Connecting...");
-                                if (!await ConnectToOnline(Hub.Config, token).ConfigureAwait(false))
-                                    continue;
-
-                                await RecoverToOverworld(token).ConfigureAwait(false);
-                            }
-
-                            await RecoverToOverworld(token).ConfigureAwait(false);
-
-                            // Check if there's a lobby.
-                            if (!await GetLobbyReady(true, token).ConfigureAwait(false))
-                            {
-                                continue;
-                            }
-                            else
-                            {
-                                Log("Den Found, continuing routine!");
-                                TodaySeed = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 8, token).ConfigureAwait(false), 0);
-                                LobbyError = 0;
-                                denFound = true;
-                                firstRun = true;
-                                hasSwapped = false;
-                                originalIdsSet = false;
-                                indicesInitialized = false;
-                                await Task.Delay(5_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(3_000, token).ConfigureAwait(false);
-                                await Click(A, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(5_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(1_000, token).ConfigureAwait(false);
-
-                            }
-                        };
-                        await Task.Delay(0_050, token).ConfigureAwait(false);
-                        if (denFound)
-                        {
-                            await SVSaveGameOverworld(token).ConfigureAwait(false);
-                            await Task.Delay(0_500, token).ConfigureAwait(false);
-                            await Click(B, 1_000, token).ConfigureAwait(false);
-                            continue;
-                        }
-                    }
-                    Log(msg);
-                    await CloseGame(Hub.Config, token).ConfigureAwait(false);
-                    await RolloverCorrectionSV(token).ConfigureAwait(false);
-                    await StartGameRaid(Hub.Config, token).ConfigureAwait(false);
-                    dayRoll++;
-                    continue;
                 }
 
                 // Clear NIDs.
@@ -2820,11 +2756,12 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (distanceToNearestActiveDen > threshold)
                 {
                     uint seedOfNearestDen = nearestActiveRaid.Raid.Seed;
-                    if (!firstRun)
-                    {
+
                         // Player is not at the den, so teleport
                         await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
-                        Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
+                        if (!firstRun)
+                        {
+                            Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
                     }
                 }
                 else
