@@ -21,6 +21,7 @@ namespace SysBot.Pokemon
         protected PokeDataOffsetsSV Offsets { get; } = new();
         public ulong returnOfs = 0;
         private ulong KeyBlockAddress = 0;
+        private ulong BaseBlockKeyPointer;
         protected PokeRoutineExecutor9SV(PokeBotState cfg) : base(cfg)
         {
         }
@@ -300,10 +301,22 @@ namespace SysBot.Pokemon
         {
             KeyBlockAddress = 0;
 
+            if (block.Pointer == null)
+            {
+                Log("Block pointer is null. Aborting operation.");
+                throw new ArgumentNullException(nameof(block.Pointer), "Block pointer cannot be null.");
+            }
+
             if (KeyBlockAddress == 0)
-                KeyBlockAddress = await SwitchConnection.PointerAll(block.Pointer!, token).ConfigureAwait(false);
+                KeyBlockAddress = await SwitchConnection.PointerAll(block.Pointer, token).ConfigureAwait(false);
 
             var keyblock = await SwitchConnection.ReadBytesAbsoluteAsync(KeyBlockAddress, 16, token).ConfigureAwait(false);
+            if (keyblock == null || keyblock.Length < 16)
+            {
+                Log("Failed to read keyblock or keyblock is too short.");
+                throw new InvalidOperationException("Failed to read keyblock.");
+            }
+
             var start = BitConverter.ToUInt64(keyblock.AsSpan()[..8]);
             var end = BitConverter.ToUInt64(keyblock.AsSpan()[8..]);
             var ct = (ulong)48;
@@ -314,6 +327,12 @@ namespace SysBot.Pokemon
                 var mid = start + (block_ct >> 1) * ct;
 
                 var data = await SwitchConnection.ReadBytesAbsoluteAsync(mid, 4, token).ConfigureAwait(false);
+                if (data == null || data.Length < 4)
+                {
+                    Log("Failed to read data or data is too short.");
+                    continue; // or break, depending on your error handling strategy
+                }
+
                 var found = BitConverter.ToUInt32(data);
                 if (found == block.Key)
                 {
@@ -326,7 +345,9 @@ namespace SysBot.Pokemon
                     end = mid;
                 else start = mid + ct;
             }
-            throw new ArgumentOutOfRangeException(nameof(block));
+
+            Log("Block key not found within the specified range.");
+            throw new ArgumentOutOfRangeException(nameof(block), "Block key not found.");
         }
 
         private async Task<ulong> PrepareAddress(ulong address, CancellationToken token) =>
@@ -370,8 +391,66 @@ namespace SysBot.Pokemon
             var header = await ReadEncryptedBlockHeader(block, token).ConfigureAwait(false);
             return ReadInt32LittleEndian(header.AsSpan()[1..]);
         }
+        public async Task<bool> WriteEncryptedBlockSByte(DataBlock block, sbyte valueToExpect, sbyte valueToInject, CancellationToken token)
+        {
+            Log("Starting WriteEncryptedBlockSByte method.");
 
-        private async Task<bool> WriteEncryptedBlockByte(DataBlock block, byte valueToExpect, byte valueToInject, CancellationToken token)
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+            {
+                Log("No remote connection. Aborting write operation.");
+                throw new InvalidOperationException("No remote connection");
+            }
+
+            ulong address;
+            try
+            {
+                address = await GetBlockAddress(block, token).ConfigureAwait(false);
+                Log($"Block address obtained: {address}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Exception in getting block address: {ex.Message}");
+                return false;
+            }
+
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            if (header == null || header.Length < 5)
+            {
+                Log("Failed to read header or header is too short.");
+                return false;
+            }
+
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            Log("Header decrypted.");
+
+            var ram = (sbyte)header[1];
+            Log($"RAM value: {ram}, Expected value: {valueToExpect}");
+
+            if (ram != valueToExpect)
+            {
+                Log("RAM value does not match expected value. Aborting write operation.");
+                return false;
+            }
+
+            header[1] = (byte)valueToInject; // Convert sbyte to byte for writing
+            header = BlockUtil.EncryptBlock(block.Key, header);
+            Log("Header encrypted with new value.");
+
+            try
+            {
+                await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
+                Log("Write operation successful.");
+            }
+            catch (Exception ex)
+            {
+                Log($"Exception in write operation: {ex.Message}");
+                return false;
+            }
+
+            return true;
+        }
+
+        public async Task<bool> WriteEncryptedBlockByte(DataBlock block, byte valueToExpect, byte valueToInject, CancellationToken token)
         {
             if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
                 throw new InvalidOperationException("No remote connection");
@@ -506,10 +585,14 @@ namespace SysBot.Pokemon
             return res[0] == 2;
         }
 
-        private async Task<byte> ReadEncryptedBlockByte(DataBlock block, CancellationToken token)
+        public async Task<sbyte> ReadEncryptedBlockByte(DataBlock block, CancellationToken token)
         {
-            var header = await ReadEncryptedBlockHeader(block, token).ConfigureAwait(false);
-            return header[1];
+            BaseBlockKeyPointer = await SwitchConnection.PointerAll(Offsets.BlockKeyPointer, token).ConfigureAwait(false);
+            var addr = await SearchSaveKey(BaseBlockKeyPointer, block.Key, token).ConfigureAwait(false);
+            addr = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(addr + 8, 0x8, token).ConfigureAwait(false), 0);
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(addr, 5, token).ConfigureAwait(false);
+            header = DecryptBlock(block.Key, header);
+            return (sbyte)header[1];
         }
 
         private async Task<uint> ReadEncryptedBlockUint(DataBlock block, CancellationToken token)

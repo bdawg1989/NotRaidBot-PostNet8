@@ -2459,6 +2459,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
             await InitializeRaidBlockPointers(token);
+            await UpdateAndWriteFieldID(token);
             await LogPlayerLocation(token); // Teleports user to closest Active Den
 
             if (Settings.ActiveRaids.Count > 1)
@@ -2619,6 +2620,72 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Log the rotation values
             Log($"Current Rotation: RX={rx}, RY={ry}, RZ={rz}, RW={rw}");
         } */
+
+        private async Task UpdateAndWriteFieldID(CancellationToken token)
+        {
+            sbyte newFieldID = 0; // Default to Paldea
+            switch (Settings.PlayerRegion)
+            {
+                case RegionChoice.Paldea:
+                    newFieldID = 0;
+                    break;
+                case RegionChoice.Kitakami:
+                    newFieldID = 1;
+                    break;
+                case RegionChoice.Blueberry:
+                    newFieldID = 2;
+                    break;
+                case RegionChoice.Off:
+                    // No need to update Field ID if the setting is Off
+                    return;
+                default:
+                    throw new InvalidOperationException("Invalid region");
+            }
+
+            // Check if the new Field ID is different from the current one
+            sbyte currentFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
+            Log($"Current Field ID: {currentFieldID}");
+
+            if (currentFieldID != newFieldID)
+            {
+                // Attempt to write the new Field ID
+                bool writeSuccess = await WriteEncryptedBlockSByte(RaidDataBlocks.KPlayerCurrentFieldID, currentFieldID, newFieldID, token).ConfigureAwait(false);
+
+                if (writeSuccess)
+                {
+                    Log($"Field ID successfully updated to {newFieldID}");
+
+                    // Read back the Field ID to confirm the change
+                    sbyte updatedFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
+                    Log($"Confirmed Field ID after update: {updatedFieldID}");
+
+                    // Check if the Field ID update was successful
+                    if (updatedFieldID == newFieldID)
+                    {
+                        Log("Field ID update confirmed.");
+                    }
+                    else
+                    {
+                        Log("Field ID update failed or not confirmed.");
+                    }
+                }
+                else
+                {
+                    Log("Failed to update Field ID.");
+                }
+
+                // Additional operations if the new Field ID is 2 (Blueberry)
+                if (newFieldID == 2)
+                {
+                    // Teleport to specific coordinates for Blueberry
+                    await TeleportToDen(1419.0885f, 148.04196f, -392.419f, token).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                Log("No update needed. Field ID is already set to the desired value.");
+            }
+        }
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
@@ -2885,6 +2952,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             await InitializeRaidBlockPointers(token);
             if (firstRun)
             {
+                await UpdateAndWriteFieldID(token);
                 await LogPlayerLocation(token); // Get seed from current den for processing
             }
             string game = await DetermineGame(token);
