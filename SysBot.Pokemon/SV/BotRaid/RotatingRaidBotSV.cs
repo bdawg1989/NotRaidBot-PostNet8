@@ -81,10 +81,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         private bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
         private static int BlueberryDensCount = 0;
-        private ulong RaidBlockPointer;
-        private int RaidBlockSize;
-        private TeraRaidMapParent RaidMap;
-        private byte FieldID = 0;
 
         public override async Task MainLoop(CancellationToken token)
         {
@@ -1312,7 +1308,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 return new List<long>(Offsets.RaidBlockPointerK)
                 {
-                    [3] = 0xCE8 + ((index - 70) * 0x20) 
+                    [3] = 0xCE8 + ((index - 70) * 0x20)
                 };
             }
             else if (IsBlueberry)
@@ -1967,28 +1963,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
             RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
-            FieldID = (byte)await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
-            switch (FieldID)
-            {
-                case 0: // Paldea
-                    RaidBlockPointer = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false) + RaidBlock.HEADER_SIZE;
-                    RaidBlockSize = (int)(RaidBlock.SIZE_BASE - RaidBlock.HEADER_SIZE);
-                    break;
-                case 1: // Kitakami
-                    RaidBlockPointer = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
-                    RaidBlockSize = (int)RaidBlock.SIZE_KITAKAMI;
-                    RaidMap = TeraRaidMapParent.Kitakami;
-                    break;
-                case 2: // Blueberry
-                    RaidBlockPointer = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
-                    RaidBlockSize = (int)RaidBlock.SIZE_BLUEBERRY;
-                    RaidMap = TeraRaidMapParent.Blueberry;
-                    break;
-                default:
-                    throw new InvalidOperationException("Invalid Field ID");
-            }
-
-
             if (firstRun)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);
@@ -2322,7 +2296,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (token.IsCancellationRequested)
                 {
                     Log("Connection attempt canceled.");
-                    break; 
+                    break;
                 }
                 try
                 {
@@ -2648,7 +2622,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
-            const float offset = 1.4f; 
+            const float offset = 1.4f;
             x += offset;
 
             // Convert coordinates to byte array
@@ -2775,25 +2749,25 @@ namespace SysBot.Pokemon.SV.BotRaid
                 const float threshold = 1.6f;
 
                 uint denSeed = nearestActiveRaid.Raid.Seed;
-                string hexDenSeed = denSeed.ToString("X8"); 
-                denHexSeed = hexDenSeed; 
-                // Log($"Seed: {hexDenSeed} Nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
+                string hexDenSeed = denSeed.ToString("X8");
+                denHexSeed = hexDenSeed;
+                Log($"Seed: {hexDenSeed} Nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
 
                 if (distanceToNearestActiveDen > threshold)
                 {
                     uint seedOfNearestDen = nearestActiveRaid.Raid.Seed;
 
-                        // Player is not at the den, so teleport
-                        await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
-                        if (!firstRun)
-                        {
-                            Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
+                    // Player is not at the den, so teleport
+                    await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
+                    if (!firstRun)
+                    {
+                        Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
                     }
                 }
                 else
                 {
                     // Player is already at the den
-                  //  Log($"Already at the nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
+                    //  Log($"Already at the nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
                 }
             }
             else
@@ -3149,7 +3123,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                         a--;  // Decrement the index so that it does not skip the next element.
                         continue;  // Skip to the next iteration.
                     }
-                    
+
                     if (seed == set)
                     {
                         var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);

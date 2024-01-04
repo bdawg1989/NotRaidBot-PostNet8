@@ -21,7 +21,6 @@ namespace SysBot.Pokemon
         protected PokeDataOffsetsSV Offsets { get; } = new();
         public ulong returnOfs = 0;
         private ulong KeyBlockAddress = 0;
-        private ulong BaseBlockKeyPointer;
         protected PokeRoutineExecutor9SV(PokeBotState cfg) : base(cfg)
         {
         }
@@ -372,7 +371,7 @@ namespace SysBot.Pokemon
             return ReadInt32LittleEndian(header.AsSpan()[1..]);
         }
 
-        public async Task<bool> WriteEncryptedBlockByte(DataBlock block, byte valueToExpect, byte valueToInject, CancellationToken token)
+        private async Task<bool> WriteEncryptedBlockByte(DataBlock block, byte valueToExpect, byte valueToInject, CancellationToken token)
         {
             if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
                 throw new InvalidOperationException("No remote connection");
@@ -507,16 +506,11 @@ namespace SysBot.Pokemon
             return res[0] == 2;
         }
 
-        public async Task<sbyte> ReadEncryptedBlockByte(DataBlock block, CancellationToken token)
+        private async Task<byte> ReadEncryptedBlockByte(DataBlock block, CancellationToken token)
         {
-            BaseBlockKeyPointer = await SwitchConnection.PointerAll(Offsets.BlockKeyPointer, token).ConfigureAwait(false);
-            var addr = await SearchSaveKey(BaseBlockKeyPointer, block.Key, token).ConfigureAwait(false);
-            addr = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(addr + 8, 0x8, token).ConfigureAwait(false), 0);
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(addr, 5, token).ConfigureAwait(false);
-            header = DecryptBlock(block.Key, header);
-            return (sbyte)header[1];
+            var header = await ReadEncryptedBlockHeader(block, token).ConfigureAwait(false);
+            return header[1];
         }
-
 
         private async Task<uint> ReadEncryptedBlockUint(DataBlock block, CancellationToken token)
         {
