@@ -81,6 +81,10 @@ namespace SysBot.Pokemon.SV.BotRaid
         private bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
         private static int BlueberryDensCount = 0;
+        private ulong RaidBlockPointer;
+        private int RaidBlockSize;
+        private TeraRaidMapParent RaidMap;
+        private byte FieldID = 0;
 
         public override async Task MainLoop(CancellationToken token)
         {
@@ -1963,6 +1967,28 @@ namespace SysBot.Pokemon.SV.BotRaid
             RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
             RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
+            FieldID = (byte)await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
+            switch (FieldID)
+            {
+                case 0: // Paldea
+                    RaidBlockPointer = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false) + RaidBlock.HEADER_SIZE;
+                    RaidBlockSize = (int)(RaidBlock.SIZE_BASE - RaidBlock.HEADER_SIZE);
+                    break;
+                case 1: // Kitakami
+                    RaidBlockPointer = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
+                    RaidBlockSize = (int)RaidBlock.SIZE_KITAKAMI;
+                    RaidMap = TeraRaidMapParent.Kitakami;
+                    break;
+                case 2: // Blueberry
+                    RaidBlockPointer = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
+                    RaidBlockSize = (int)RaidBlock.SIZE_BLUEBERRY;
+                    RaidMap = TeraRaidMapParent.Blueberry;
+                    break;
+                default:
+                    throw new InvalidOperationException("Invalid Field ID");
+            }
+
+
             if (firstRun)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);

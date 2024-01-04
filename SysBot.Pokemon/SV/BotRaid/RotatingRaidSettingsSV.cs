@@ -8,6 +8,7 @@ using System.Threading;
 
 namespace SysBot.Pokemon
 {
+
     public class RotatingRaidSettingsSV : IBotStateSettings
     {
         private const string Hosting = nameof(Hosting);
