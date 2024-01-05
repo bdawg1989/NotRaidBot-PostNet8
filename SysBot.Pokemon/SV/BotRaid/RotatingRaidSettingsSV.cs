@@ -73,7 +73,7 @@ namespace SysBot.Pokemon
         public class EventSettingsCategory
         {
             public override string ToString() => "Event Settings";
-            [Category(Hosting), Description("Set to \"true\" when events are active to properly process level 7 (event) and level 5 (distribution) raids.")]
+            [Category(Hosting), Description("Set to \"false\" to stop Event settings from changing automatically if Event is found in Overworld.")]
             public bool EventsOn { get; set; } = false;
 
             [Category(Hosting), Description("Set to \"true\" when events are active to properly process level 7 (event) and level 5 (distribution) raids.")]
