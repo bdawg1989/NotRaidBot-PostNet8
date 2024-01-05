@@ -11,13 +11,6 @@ namespace SysBot.Pokemon
 
     public class RotatingRaidSettingsSV : IBotStateSettings
     {
-        public enum RegionChoice
-        {
-            Off, // To turn off the setting
-            Paldea,
-            Kitakami,
-            Blueberry
-        }
         private const string Hosting = nameof(Hosting);
         private const string Counts = nameof(Counts);
         private const string FeatureToggle = nameof(FeatureToggle);
@@ -26,8 +19,7 @@ namespace SysBot.Pokemon
 
         [Category(Hosting), Description("Your Active Raid List lives here.")]
         public List<RotatingRaidParameters> ActiveRaids { get; set; } = new();
-        [Category(FeatureToggle), Description("Choose the region for teleportation.")]
-        public RegionChoice PlayerRegion { get; set; } = RegionChoice.Off;
+
         public RotatingRaidSettingsCategory RaidSettings { get; set; } = new RotatingRaidSettingsCategory();
 
         public RotatingRaidPresetFiltersCategory EmbedToggles { get; set; } = new RotatingRaidPresetFiltersCategory();

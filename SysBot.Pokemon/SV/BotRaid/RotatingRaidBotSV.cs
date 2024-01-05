@@ -2459,7 +2459,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
             await InitializeRaidBlockPointers(token);
-            // await UpdateAndWriteFieldID(token);
             await LogPlayerLocation(token); // Teleports user to closest Active Den
 
             if (Settings.ActiveRaids.Count > 1)
@@ -2619,78 +2618,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             // Log the rotation values
             Log($"Current Rotation: RX={rx}, RY={ry}, RZ={rz}, RW={rw}");
-        } */
-
-        /* DOES NOT WORK
-        private async Task<bool> UpdateAndWriteFieldID(CancellationToken token)
-        {
-            sbyte newFieldID = 0; // Default to Paldea
-            switch (Settings.PlayerRegion)
-            {
-                case RegionChoice.Paldea:
-                    newFieldID = 0;
-                    break;
-                case RegionChoice.Kitakami:
-                    newFieldID = 1;
-                    break;
-                case RegionChoice.Blueberry:
-                    newFieldID = 2;
-                    break;
-                case RegionChoice.Off:
-                    // No need to update Field ID if the setting is Off
-                    return true;
-                default:
-                    throw new InvalidOperationException("Invalid region");
-            }
-
-            sbyte currentFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
-            Log($"Current Field ID: {currentFieldID}");
-
-            if (currentFieldID != newFieldID)
-            {
-                // Start continuously writing the new Field ID in the background
-                var keepWriting = true;
-                var writeTask = Task.Run(async () =>
-                {
-                    while (keepWriting)
-                    {
-                        await WriteEncryptedBlockSByte(RaidDataBlocks.KPlayerCurrentFieldID, currentFieldID, newFieldID, token);
-                        await Task.Delay(500, token); // Adjust the delay as needed
-                    }
-                }, token);
-
-                // Perform the save operation
-                await Click(X, 1_000, token).ConfigureAwait(false); // Open menu
-                await Click(R, 1_000, token).ConfigureAwait(false); // Navigate to save
-                await Click(A, 0_000, token).ConfigureAwait(false); // Confirm save
-                await Task.Delay(3_000, token).ConfigureAwait(false); // Wait for save to complete
-                await Click(A, 1_000, token).ConfigureAwait(false); // Additional confirmation if needed
-                await Click(B, 1_000, token).ConfigureAwait(false); // Exit menu
-
-                // Stop the continuous writing after the save is done
-                keepWriting = false;
-                await writeTask; // Ensure the background task completes
-
-                // Read back the Field ID to confirm the change
-                sbyte updatedFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
-                Log($"Confirmed Field ID after update: {updatedFieldID}");
-
-                if (updatedFieldID == newFieldID)
-                {
-                    Log("Field ID update confirmed.");
-                    return true;
-                }
-                else
-                {
-                    Log("Field ID update failed or not confirmed.");
-                    return false;
-                }
-            }
-            else
-            {
-                Log("No update needed. Field ID is already set to the desired value.");
-                return true;
-            }
         } */
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
@@ -2958,7 +2885,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             await InitializeRaidBlockPointers(token);
             if (firstRun)
             {
-                // await UpdateAndWriteFieldID(token);
                 await LogPlayerLocation(token); // Get seed from current den for processing
             }
             string game = await DetermineGame(token);
