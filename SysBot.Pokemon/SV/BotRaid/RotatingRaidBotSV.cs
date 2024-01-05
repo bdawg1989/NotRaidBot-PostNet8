@@ -1973,6 +1973,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                 _ => "Unknown"
             };
             Log($"Player in Region: {regionName}");
+            if (regionName == "Kitakami")
+            {
+                IsKitakami = true;
+            }
+            else if (regionName == "Blueberry")
+            {
+                IsBlueberry = true;
+            }
             if (firstRun)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);
