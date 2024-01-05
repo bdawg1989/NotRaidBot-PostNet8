@@ -414,24 +414,10 @@ namespace SysBot.Pokemon
             }
 
             var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            if (header == null || header.Length < 5)
-            {
-                Log("Failed to read header or header is too short.");
-                return false;
-            }
-
             header = BlockUtil.DecryptBlock(block.Key, header);
             Log("Header decrypted.");
 
-            var ram = (sbyte)header[1];
-            Log($"RAM value: {ram}, Expected value: {valueToExpect}");
-
-            if (ram != valueToExpect)
-            {
-                Log("RAM value does not match expected value. Aborting write operation.");
-                return false;
-            }
-
+            // Directly inject new value without checking current RAM value
             header[1] = (byte)valueToInject; // Convert sbyte to byte for writing
             header = BlockUtil.EncryptBlock(block.Key, header);
             Log("Header encrypted with new value.");
@@ -449,7 +435,6 @@ namespace SysBot.Pokemon
 
             return true;
         }
-
         public async Task<bool> WriteEncryptedBlockByte(DataBlock block, byte valueToExpect, byte valueToInject, CancellationToken token)
         {
             if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)

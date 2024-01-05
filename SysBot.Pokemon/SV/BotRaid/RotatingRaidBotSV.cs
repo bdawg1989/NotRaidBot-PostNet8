@@ -2459,7 +2459,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
             await InitializeRaidBlockPointers(token);
-            await UpdateAndWriteFieldID(token);
+            // await UpdateAndWriteFieldID(token);
             await LogPlayerLocation(token); // Teleports user to closest Active Den
 
             if (Settings.ActiveRaids.Count > 1)
@@ -2621,7 +2621,8 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log($"Current Rotation: RX={rx}, RY={ry}, RZ={rz}, RW={rw}");
         } */
 
-        private async Task UpdateAndWriteFieldID(CancellationToken token)
+        /* DOES NOT WORK
+        private async Task<bool> UpdateAndWriteFieldID(CancellationToken token)
         {
             sbyte newFieldID = 0; // Default to Paldea
             switch (Settings.PlayerRegion)
@@ -2637,55 +2638,60 @@ namespace SysBot.Pokemon.SV.BotRaid
                     break;
                 case RegionChoice.Off:
                     // No need to update Field ID if the setting is Off
-                    return;
+                    return true;
                 default:
                     throw new InvalidOperationException("Invalid region");
             }
 
-            // Check if the new Field ID is different from the current one
             sbyte currentFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
             Log($"Current Field ID: {currentFieldID}");
 
             if (currentFieldID != newFieldID)
             {
-                // Attempt to write the new Field ID
-                bool writeSuccess = await WriteEncryptedBlockSByte(RaidDataBlocks.KPlayerCurrentFieldID, currentFieldID, newFieldID, token).ConfigureAwait(false);
-
-                if (writeSuccess)
+                // Start continuously writing the new Field ID in the background
+                var keepWriting = true;
+                var writeTask = Task.Run(async () =>
                 {
-                    Log($"Field ID successfully updated to {newFieldID}");
-
-                    // Read back the Field ID to confirm the change
-                    sbyte updatedFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
-                    Log($"Confirmed Field ID after update: {updatedFieldID}");
-
-                    // Check if the Field ID update was successful
-                    if (updatedFieldID == newFieldID)
+                    while (keepWriting)
                     {
-                        Log("Field ID update confirmed.");
+                        await WriteEncryptedBlockSByte(RaidDataBlocks.KPlayerCurrentFieldID, currentFieldID, newFieldID, token);
+                        await Task.Delay(500, token); // Adjust the delay as needed
                     }
-                    else
-                    {
-                        Log("Field ID update failed or not confirmed.");
-                    }
+                }, token);
+
+                // Perform the save operation
+                await Click(X, 1_000, token).ConfigureAwait(false); // Open menu
+                await Click(R, 1_000, token).ConfigureAwait(false); // Navigate to save
+                await Click(A, 0_000, token).ConfigureAwait(false); // Confirm save
+                await Task.Delay(3_000, token).ConfigureAwait(false); // Wait for save to complete
+                await Click(A, 1_000, token).ConfigureAwait(false); // Additional confirmation if needed
+                await Click(B, 1_000, token).ConfigureAwait(false); // Exit menu
+
+                // Stop the continuous writing after the save is done
+                keepWriting = false;
+                await writeTask; // Ensure the background task completes
+
+                // Read back the Field ID to confirm the change
+                sbyte updatedFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
+                Log($"Confirmed Field ID after update: {updatedFieldID}");
+
+                if (updatedFieldID == newFieldID)
+                {
+                    Log("Field ID update confirmed.");
+                    return true;
                 }
                 else
                 {
-                    Log("Failed to update Field ID.");
-                }
-
-                // Additional operations if the new Field ID is 2 (Blueberry)
-                if (newFieldID == 2)
-                {
-                    // Teleport to specific coordinates for Blueberry
-                    await TeleportToDen(1419.0885f, 148.04196f, -392.419f, token).ConfigureAwait(false);
+                    Log("Field ID update failed or not confirmed.");
+                    return false;
                 }
             }
             else
             {
                 Log("No update needed. Field ID is already set to the desired value.");
+                return true;
             }
-        }
+        } */
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
@@ -2952,7 +2958,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             await InitializeRaidBlockPointers(token);
             if (firstRun)
             {
-                await UpdateAndWriteFieldID(token);
+                // await UpdateAndWriteFieldID(token);
                 await LogPlayerLocation(token); // Get seed from current den for processing
             }
             string game = await DetermineGame(token);
@@ -2994,6 +3000,8 @@ namespace SysBot.Pokemon.SV.BotRaid
             container.SetEncounters(allEncounters);
             container.SetRewards(allRewards);
             await ProcessAllRaids(token);
+            sbyte updatedFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
+            Log($"Field ID after ReadRaids is done: {updatedFieldID}");
         }
 
         private async Task<(List<Raid>, List<ITeraRaid>, List<List<(int, int, int)>>)> ProcessRaids(byte[] data, TeraRaidMapParent mapType, CancellationToken token)
