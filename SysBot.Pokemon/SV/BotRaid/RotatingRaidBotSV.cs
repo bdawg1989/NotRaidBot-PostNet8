@@ -51,6 +51,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         private int EventProgress;
         private int EmptyRaid = 0;
         private int LostRaid = 0;
+        private int FieldID = 0;
         private bool firstRun = true;
         public static int RotationCount { get; set; }
         private ulong TodaySeed;
@@ -1963,6 +1964,15 @@ namespace SysBot.Pokemon.SV.BotRaid
             RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
             RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
+            sbyte FieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
+            string regionName = FieldID switch
+            {
+                0 => "Paldea",
+                1 => "Kitakami",
+                2 => "Blueberry",
+                _ => "Unknown"
+            };
+            Log($"Player in Region: {regionName}");
             if (firstRun)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);
@@ -2926,8 +2936,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             container.SetEncounters(allEncounters);
             container.SetRewards(allRewards);
             await ProcessAllRaids(token);
-            sbyte updatedFieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
-            Log($"Field ID after ReadRaids is done: {updatedFieldID}");
         }
 
         private async Task<(List<Raid>, List<ITeraRaid>, List<List<(int, int, int)>>)> ProcessRaids(byte[] data, TeraRaidMapParent mapType, CancellationToken token)
