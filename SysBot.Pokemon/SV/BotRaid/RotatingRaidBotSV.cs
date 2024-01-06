@@ -82,6 +82,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         private bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
         private static int BlueberryDensCount = 0;
+        private int InvalidDeliveryGroupCount = 0;
 
         public override async Task MainLoop(CancellationToken token)
         {
@@ -2499,7 +2500,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
             await InitializeRaidBlockPointers(token);
-            await LogPlayerLocation(token); // Teleports user to closest Active Den
 
             if (Settings.ActiveRaids.Count > 1)
             {
@@ -2559,6 +2559,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Attempting to override seed for {Settings.ActiveRaids[RotationCount].Species}.");
                 await OverrideSeedIndex(SeedIndexToReplace, token).ConfigureAwait(false);
                 Log("Seed override completed.");
+                await LogPlayerLocation(token); // Teleports user to closest Active Den
                 if (Settings.RaidSettings.MysteryRaids && !firstRun)
                 {
                     // Count the number of existing Mystery Shiny Raids
@@ -2991,6 +2992,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Invalid delivery group ID for {delivery} raid(s) in {mapType}. Try deleting the \"cache\" folder.");
                 if (mapType == TeraRaidMapParent.Paldea)
                 {
+                    InvalidDeliveryGroupCount = delivery;
                     totalRaidsProcessed += delivery; // Add the number of invalid delivery group IDs to total raids processed
                 }
             }
@@ -3175,7 +3177,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                     }
                     else
                     {
-                        SeedIndexToReplace = i; // No adjustment for Paldea or other regions
+                        SeedIndexToReplace = i + InvalidDeliveryGroupCount; // No adjustment for Paldea or other regions
                     }
 
                     Log($"Den ID: {SeedIndexToReplace} stored.");
