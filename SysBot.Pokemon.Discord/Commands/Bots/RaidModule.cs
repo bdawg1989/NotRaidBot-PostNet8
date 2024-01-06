@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -342,6 +343,14 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 return;
             }
 
+            // Ensure Compatible Difficulty and Story Progress level
+            var compatible = CheckProgressandLevel(level, storyProgressLevel);
+            if (!compatible)
+            {
+                await ReplyAsync($"Raid Difficulty requires a {GetRequiredProgress(level)}.").ConfigureAwait(false);
+                return;
+            }
+
             // Check if the user already has a request
             var userId = Context.User.Id;
             if (Hub.Config.RotatingRaidSV.ActiveRaids.Any(r => r.RequestedByUserID == userId))
@@ -488,6 +497,39 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 2 => GameProgress.UnlockedTeraRaids,
                 1 => GameProgress.UnlockedTeraRaids,
                 _ => GameProgress.Unlocked6Stars
+            };
+        }
+
+        public bool CheckProgressandLevel(int level, int storyProgressLevel)
+        { 
+            if (level == 7 && storyProgressLevel != 6)
+                return false;
+            else if (level == 6 && storyProgressLevel <= 5)
+                return false;
+            else if (level == 5 && storyProgressLevel <= 4)
+                return false;
+            else if (level == 4 && storyProgressLevel <= 3)
+                return false;
+            else if (level == 3 && storyProgressLevel <= 2)
+                return false;
+            else if (level == 2 && storyProgressLevel <= 1)
+                return false;
+            else if (level == 1 && storyProgressLevel > 2)
+                return false;
+            else
+                return true;
+        }
+
+        public string GetRequiredProgress(int starCount)
+        {
+            return starCount switch
+            {
+                6 or 7 => "6☆ Unlocked Progress",
+                5 => "5☆ Unlocked Progress or higher",
+                4 => "4☆ Unlocked Progress or higher",
+                3 => "3☆ Unlocked Progress or higher",
+                2 => "2☆ Unlocked Progress",
+                _ => "1☆ or 2☆ Unlocked Progress",                
             };
         }
 
