@@ -2774,13 +2774,9 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (distanceToNearestActiveDen > threshold)
                 {
                     uint seedOfNearestDen = nearestActiveRaid.Raid.Seed;
-
                     // Player is not at the den, so teleport
                     await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
-                    if (!firstRun)
-                    {
-                        Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
-                    }
+                    Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
                 }
                 else
                 {
@@ -2915,29 +2911,36 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allEncounters = new List<ITeraRaid>();
             var allRewards = new List<List<(int, int, int)>>();
 
-            // Read and process Paldea Raids
-            var dataP = await ReadPaldeaRaids(token);
-            Log("Reading Paldea Raids...");
-            var (paldeaRaids, paldeaEncounters, paldeaRewards) = await ProcessRaids(dataP, TeraRaidMapParent.Paldea, token);
-            allRaids.AddRange(paldeaRaids);
-            allEncounters.AddRange(paldeaEncounters);
-            allRewards.AddRange(paldeaRewards);
-
-            // Read and process Kitakami Raids
-            var dataK = await ReadKitakamiRaids(token);
-            Log("Reading Kitakami Raids...");
-            var (kitakamiRaids, kitakamiEncounters, kitakamiRewards) = await ProcessRaids(dataK, TeraRaidMapParent.Kitakami, token);
-            allRaids.AddRange(kitakamiRaids);
-            allEncounters.AddRange(kitakamiEncounters);
-            allRewards.AddRange(kitakamiRewards);
-
-            // Read and process Blueberry Raids
-            var dataB = await ReadBlueberryRaids(token);
-            Log("Reading Blueberry Raids...");
-            var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
-            allRaids.AddRange(blueberryRaids);
-            allEncounters.AddRange(blueberryEncounters);
-            allRewards.AddRange(blueberryRewards);
+            if (IsBlueberry)
+            {
+                // Process only Blueberry raids
+                var dataB = await ReadBlueberryRaids(token);
+                Log("Reading Blueberry Raids...");
+                var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
+                allRaids.AddRange(blueberryRaids);
+                allEncounters.AddRange(blueberryEncounters);
+                allRewards.AddRange(blueberryRewards);
+            }
+            else if (IsKitakami)
+            {
+                // Process only Kitakami raids
+                var dataK = await ReadKitakamiRaids(token);
+                Log("Reading Kitakami Raids...");
+                var (kitakamiRaids, kitakamiEncounters, kitakamiRewards) = await ProcessRaids(dataK, TeraRaidMapParent.Kitakami, token);
+                allRaids.AddRange(kitakamiRaids);
+                allEncounters.AddRange(kitakamiEncounters);
+                allRewards.AddRange(kitakamiRewards);
+            }
+            else
+            {
+                // Default to processing Paldea raids
+                var dataP = await ReadPaldeaRaids(token);
+                Log("Reading Paldea Raids...");
+                var (paldeaRaids, paldeaEncounters, paldeaRewards) = await ProcessRaids(dataP, TeraRaidMapParent.Paldea, token);
+                allRaids.AddRange(paldeaRaids);
+                allEncounters.AddRange(paldeaEncounters);
+                allRewards.AddRange(paldeaRewards);
+            }
 
             // Set combined data to container and process all raids
             container.SetRaids(allRaids);
@@ -3122,9 +3125,41 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
+            uint denHexSeedUInt;
+
+            try
+            {
+                denHexSeedUInt = uint.Parse(denHexSeed, NumberStyles.AllowHexSpecifier);
+            }
+            catch (FormatException)
+            {
+                Log($"Invalid denHexSeed format: {denHexSeed}");
+                return; // Or handle the error as appropriate
+            }
 
             for (int i = 0; i < allRaids.Count; i++)
             {
+                if (allRaids[i].Seed == denHexSeedUInt)
+                {
+                    // Adjust SeedIndexToReplace based on the region
+                    if (IsKitakami)
+                    {
+                        SeedIndexToReplace = i + 69; // Adjust for Kitakami region
+                    }
+                    else if (IsBlueberry)
+                    {
+                        int blueberryStartIndex = KitakamiDensCount == 25 ? 94 : 95;
+                        SeedIndexToReplace = i + blueberryStartIndex; // Adjust for Blueberry region
+                    }
+                    else
+                    {
+                        SeedIndexToReplace = i; // No adjustment for Paldea or other regions
+                    }
+
+                    Log($"Den ID: {SeedIndexToReplace} stored.");
+                    return;
+                }
+
                 var (pk, seed) = IsSeedReturned(allEncounters[i], allRaids[i]);
 
                 for (int a = 0; a < Settings.ActiveRaids.Count; a++)
@@ -3141,7 +3176,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                         a--;  // Decrement the index so that it does not skip the next element.
                         continue;  // Skip to the next iteration.
                     }
-
                     if (seed == set)
                     {
                         var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
