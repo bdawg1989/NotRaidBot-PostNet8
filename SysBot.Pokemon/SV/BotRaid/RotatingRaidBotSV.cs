@@ -485,7 +485,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00} in Kitakami.");
+                    Log($"Raid Den Located at {i} in Kitakami.");
                     IsKitakami = true;
                     return;
                 }
@@ -3149,7 +3149,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                     else if (IsBlueberry)
                     {
                         int blueberryStartIndex = KitakamiDensCount == 25 ? 94 : 95;
-                        SeedIndexToReplace = i + blueberryStartIndex; // Adjust for Blueberry region
+                        SeedIndexToReplace = i + blueberryStartIndex + 1; // Adjust for Blueberry region
                     }
                     else
                     {
