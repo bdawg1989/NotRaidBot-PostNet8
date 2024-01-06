@@ -569,12 +569,26 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task<bool> CheckIfConnectedToLobbyAndLog(CancellationToken token)
         {
-            if (await IsConnectedToLobby(token).ConfigureAwait(false))
+            try
             {
-                Log("Preparing for battle!");
-                return true;
+                if (await IsConnectedToLobby(token).ConfigureAwait(false))
+                {
+                    Log("Preparing for battle!");
+                    return true;
+                }
+                else
+                {
+                    Log("Not connected to lobby, reopening game.");
+                    await ReOpenGame(Hub.Config, token);
+                    return false;
+                }
             }
-            return false;
+            catch (Exception ex) // Catch the appropriate exception
+            {
+                Log($"Error checking lobby connection: {ex.Message}, reopening game.");
+                await ReOpenGame(Hub.Config, token);
+                return false;
+            }
         }
 
         private async Task<bool> EnsureInRaid(CancellationToken linkedToken)
@@ -583,12 +597,20 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             while (!await IsInRaid(linkedToken).ConfigureAwait(false))
             {
-                if (linkedToken.IsCancellationRequested || (DateTime.Now - startTime).TotalMinutes > 5) // 5-minute timeout
+                if (linkedToken.IsCancellationRequested || (DateTime.Now - startTime).TotalMinutes > 5)
                 {
-                    Log("Timeout reached or cancellation requested, resetting to recover.");
-                    await ReOpenGame(Hub.Config, linkedToken).ConfigureAwait(false);
+                    Log("Timeout reached or cancellation requested, reopening game.");
+                    await ReOpenGame(Hub.Config, linkedToken);
                     return false;
                 }
+
+                if (!await IsConnectedToLobby(linkedToken).ConfigureAwait(false))
+                {
+                    Log("Lost connection to lobby, reopening game.");
+                    await ReOpenGame(Hub.Config, linkedToken);
+                    return false;
+                }
+
                 await Click(A, 1_000, linkedToken).ConfigureAwait(false);
             }
             return true;
