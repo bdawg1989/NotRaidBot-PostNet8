@@ -152,8 +152,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
         [Alias("lr")]
         [Summary("Sets the limit on the number of requests a user can make.")]
         [RequireSudo]
-        public async Task SetLimitRequestsAsync(
-    [Summary("The new limit for requests. Set to 0 to disable.")] int newLimit)
+        public async Task SetLimitRequestsAsync([Summary("The new limit for requests. Set to 0 to disable.")] int newLimit)
         {
             var settings = Hub.Config.RotatingRaidSV.RaidSettings;
             settings.LimitRequests = newLimit;
@@ -165,8 +164,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
         [Alias("lrt")]
         [Summary("Sets the time users must wait once their request limit is reached.")]
         [RequireSudo]
-        public async Task SetLimitRequestsTimeAsync(
-    [Summary("The new time in minutes. Set to 0 to disable.")] int newTime)
+        public async Task SetLimitRequestsTimeAsync([Summary("The new time in minutes. Set to 0 to disable.")] int newTime)
         {
             var settings = Hub.Config.RotatingRaidSV.RaidSettings;
             settings.LimitRequestsTime = newTime;
@@ -497,38 +495,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 2 => GameProgress.UnlockedTeraRaids,
                 1 => GameProgress.UnlockedTeraRaids,
                 _ => GameProgress.Unlocked6Stars
-            };
-        }
-        public bool CheckProgressandLevel(int level, int storyProgressLevel)
-        {
-            if (level == 7 && storyProgressLevel != 6)
-                return false;
-            else if (level == 6 && storyProgressLevel <= 5)
-                return false;
-            else if (level == 5 && storyProgressLevel <= 4)
-                return false;
-            else if (level == 4 && storyProgressLevel <= 3)
-                return false;
-            else if (level == 3 && storyProgressLevel <= 2)
-                return false;
-            else if (level == 2 && storyProgressLevel <= 1)
-                return false;
-            else if (level == 1 && storyProgressLevel > 2)
-                return false;
-            else
-                return true;
-        }
-
-        public string GetRequiredProgress(int starCount)
-        {
-            return starCount switch
-            {
-                6 or 7 => "6☆ Unlocked Progress",
-                5 => "5☆ Unlocked Progress or higher",
-                4 => "4☆ Unlocked Progress or higher",
-                3 => "3☆ Unlocked Progress or higher",
-                2 => "2☆ Unlocked Progress",
-                _ => "1☆ or 2☆ Unlocked Progress",
             };
         }
 

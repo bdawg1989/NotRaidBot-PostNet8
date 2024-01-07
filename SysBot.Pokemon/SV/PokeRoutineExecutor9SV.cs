@@ -232,466 +232,6 @@ namespace SysBot.Pokemon
             await Click(B, 1_500, token).ConfigureAwait(false);
         }
 
-        // Save Block Additions from TeraFinder/RaidCrawler/sv-livemap
-        public async Task<object?> ReadBlock(DataBlock block, CancellationToken token)
-        {
-            if (block.IsEncrypted)
-                return await ReadEncryptedBlock(block, token).ConfigureAwait(false);
-            else
-                return await ReadDecryptedBlock(block, token).ConfigureAwait(false);
-        }
-
-        public async Task<bool> WriteBlock(object data, DataBlock block, CancellationToken token, object? toExpect = default)
-        {
-            if (block.IsEncrypted)
-                return await WriteEncryptedBlockSafe(block, toExpect, data, token).ConfigureAwait(false);
-            else
-                return await WriteDecryptedBlock((byte[])data!, block, token).ConfigureAwait(false);
-        }
-
-        public async Task<bool> WriteEncryptedBlockSafe(DataBlock block, object? toExpect, object toWrite, CancellationToken token)
-        {
-            if (toExpect == default || toWrite == default)
-                return false;
-
-            return block.Type switch
-            {
-                SCTypeCode.Object => await WriteEncryptedBlockObject(block, (byte[])toExpect, (byte[])toWrite, token),
-                SCTypeCode.Array => await WriteEncryptedBlockArray(block, (byte[])toExpect, (byte[])toWrite, token).ConfigureAwait(false),
-                SCTypeCode.Bool1 or SCTypeCode.Bool2 or SCTypeCode.Bool3 => await WriteEncryptedBlockBool(block, (bool)toExpect, (bool)toWrite, token).ConfigureAwait(false),
-                SCTypeCode.Byte or SCTypeCode.SByte => await WriteEncryptedBlockByte(block, (byte)toExpect, (byte)toWrite, token).ConfigureAwait(false),
-                SCTypeCode.UInt32 => await WriteEncryptedBlockUint(block, (uint)toExpect, (uint)toWrite, token).ConfigureAwait(false),
-                SCTypeCode.Int32 => await WriteEncryptedBlockInt32(block, (int)toExpect, (int)toWrite, token).ConfigureAwait(false),
-                _ => throw new NotSupportedException($"Block {block.Name} (Type {block.Type}) is currently not supported.")
-            };
-        }
-
-        private async Task<bool> WriteEncryptedBlockInt32(DataBlock block, int valueToExpect, int valueToInject, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            //Always read and decrypt first to validate address and data
-            ulong address;
-            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
-            catch (Exception) { return false; }
-            //If we get there without exceptions, the block address is valid
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            header = BlockUtil.DecryptBlock(block.Key, header);
-            //Validate ram data
-            var ram = ReadInt32LittleEndian(header.AsSpan()[1..]);
-            if (ram != valueToExpect) return false;
-            //If we get there then both block address and block data are valid, we can safely inject
-            WriteInt32LittleEndian(header.AsSpan()[1..], valueToInject);
-            header = BlockUtil.EncryptBlock(block.Key, header);
-            await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
-            return true;
-        }
-
-        private async Task<byte[]> ReadDecryptedBlock(DataBlock block, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            var data = await SwitchConnection.PointerPeek(block.Size, block.Pointer!, token).ConfigureAwait(false);
-            return data;
-        }
-
-        private async Task<ulong> GetBlockAddress(DataBlock block, CancellationToken token, bool prepareAddress = true)
-        {
-            KeyBlockAddress = 0;
-
-            if (block.Pointer == null)
-            {
-                Log("Block pointer is null. Aborting operation.");
-                throw new ArgumentNullException(nameof(block.Pointer), "Block pointer cannot be null.");
-            }
-
-            if (KeyBlockAddress == 0)
-                KeyBlockAddress = await SwitchConnection.PointerAll(block.Pointer, token).ConfigureAwait(false);
-
-            var keyblock = await SwitchConnection.ReadBytesAbsoluteAsync(KeyBlockAddress, 16, token).ConfigureAwait(false);
-            if (keyblock == null || keyblock.Length < 16)
-            {
-                Log("Failed to read keyblock or keyblock is too short.");
-                throw new InvalidOperationException("Failed to read keyblock.");
-            }
-
-            var start = BitConverter.ToUInt64(keyblock.AsSpan()[..8]);
-            var end = BitConverter.ToUInt64(keyblock.AsSpan()[8..]);
-            var ct = (ulong)48;
-
-            while (start < end)
-            {
-                var block_ct = (end - start) / ct;
-                var mid = start + (block_ct >> 1) * ct;
-
-                var data = await SwitchConnection.ReadBytesAbsoluteAsync(mid, 4, token).ConfigureAwait(false);
-                if (data == null || data.Length < 4)
-                {
-                    Log("Failed to read data or data is too short.");
-                    continue; // or break, depending on your error handling strategy
-                }
-
-                var found = BitConverter.ToUInt32(data);
-                if (found == block.Key)
-                {
-                    if (prepareAddress)
-                        mid = await PrepareAddress(mid, token).ConfigureAwait(false);
-                    return mid;
-                }
-
-                if (found >= block.Key)
-                    end = mid;
-                else start = mid + ct;
-            }
-
-            Log("Block key not found within the specified range.");
-            throw new ArgumentOutOfRangeException(nameof(block), "Block key not found.");
-        }
-
-        private async Task<ulong> PrepareAddress(ulong address, CancellationToken token) =>
-            BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(address + 8, 8, token).ConfigureAwait(false));
-
-        private async Task<bool> WriteEncryptedBlockUint(DataBlock block, uint valueToExpect, uint valueToInject, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            //Always read and decrypt first to validate address and data
-            ulong address;
-            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
-            catch (Exception) { return false; }
-            //If we get there without exceptions, the block address is valid
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            header = BlockUtil.DecryptBlock(block.Key, header);
-            //Validate ram data
-            var ram = ReadUInt32LittleEndian(header.AsSpan()[1..]);
-            if (ram != valueToExpect) return false;
-            //If we get there then both block address and block data are valid, we can safely inject
-            WriteUInt32LittleEndian(header.AsSpan()[1..], valueToInject);
-            header = BlockUtil.EncryptBlock(block.Key, header);
-            await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
-            return true;
-        }
-
-        private async Task<byte[]> ReadEncryptedBlockHeader(DataBlock block, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            header = BlockUtil.DecryptBlock(block.Key, header);
-            return header;
-        }
-
-        private async Task<int> ReadEncryptedBlockInt32(DataBlock block, CancellationToken token)
-        {
-            var header = await ReadEncryptedBlockHeader(block, token).ConfigureAwait(false);
-            return ReadInt32LittleEndian(header.AsSpan()[1..]);
-        }
-        public async Task<bool> WriteEncryptedBlockSByte(DataBlock block, sbyte valueToExpect, sbyte valueToInject, CancellationToken token)
-        {
-            Log("Starting WriteEncryptedBlockSByte method.");
-
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-            {
-                Log("No remote connection. Aborting write operation.");
-                throw new InvalidOperationException("No remote connection");
-            }
-
-            ulong address;
-            try
-            {
-                address = await GetBlockAddress(block, token).ConfigureAwait(false);
-                Log($"Block address obtained: {address}");
-            }
-            catch (Exception ex)
-            {
-                Log($"Exception in getting block address: {ex.Message}");
-                return false;
-            }
-
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            header = BlockUtil.DecryptBlock(block.Key, header);
-            Log("Header decrypted.");
-
-            // Directly inject new value without checking current RAM value
-            header[1] = (byte)valueToInject; // Convert sbyte to byte for writing
-            header = BlockUtil.EncryptBlock(block.Key, header);
-            Log("Header encrypted with new value.");
-
-            try
-            {
-                await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
-                Log("Write operation successful.");
-            }
-            catch (Exception ex)
-            {
-                Log($"Exception in write operation: {ex.Message}");
-                return false;
-            }
-
-            return true;
-        }
-        public async Task<bool> WriteEncryptedBlockByte(DataBlock block, byte valueToExpect, byte valueToInject, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            //Always read and decrypt first to validate address and data
-            ulong address;
-            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
-            catch (Exception) { return false; }
-            //If we get there without exceptions, the block address is valid
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            header = BlockUtil.DecryptBlock(block.Key, header);
-            //Validate ram data
-            var ram = header[1];
-            if (ram != valueToExpect) return false;
-            //If we get there then both block address and block data are valid, we can safely inject
-            header[1] = valueToInject;
-            header = BlockUtil.EncryptBlock(block.Key, header);
-            await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
-            return true;
-        }
-
-        private async Task<bool> WriteDecryptedBlock(byte[] data, DataBlock block, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            var pointer = await SwitchConnection.PointerAll(block.Pointer!, token).ConfigureAwait(false);
-            await SwitchConnection.WriteBytesAbsoluteAsync(data, pointer, token).ConfigureAwait(false);
-
-            return true;
-        }
-
-        private async Task<bool> WriteEncryptedBlockBool(DataBlock block, bool valueToExpect, bool valueToInject, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            //Always read and decrypt first to validate address and data
-            ulong address;
-            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
-            catch (Exception) { return false; }
-            //If we get there without exceptions, the block address is valid
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, block.Size, token).ConfigureAwait(false);
-            data = BlockUtil.DecryptBlock(block.Key, data);
-            //Validate ram data
-            var ram = data[0] == 2;
-            if (ram != valueToExpect) return false;
-            //If we get there then both block address and block data are valid, we can safely inject
-            data[0] = valueToInject ? (byte)2 : (byte)1;
-            data = BlockUtil.EncryptBlock(block.Key, data);
-            await SwitchConnection.WriteBytesAbsoluteAsync(data, address, token).ConfigureAwait(false);
-            return true;
-        }
-
-        private async Task<bool> WriteEncryptedBlockArray(DataBlock block, byte[] arrayToExpect, byte[] arrayToInject, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            //Always read and decrypt first to validate address and data
-            ulong address;
-            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
-            catch (Exception) { return false; }
-            //If we get there without exceptions, the block address is valid
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 6 + block.Size, token).ConfigureAwait(false);
-            data = BlockUtil.DecryptBlock(block.Key, data);
-            //Validate ram data
-            var ram = data[6..];
-            if (!ram.SequenceEqual(arrayToExpect)) return false;
-            //If we get there then both block address and block data are valid, we can safely inject
-            Array.ConstrainedCopy(arrayToInject, 0, data, 6, block.Size);
-            data = BlockUtil.EncryptBlock(block.Key, data);
-            await SwitchConnection.WriteBytesAbsoluteAsync(data, address, token).ConfigureAwait(false);
-            return true;
-        }
-
-        public async Task<bool> WriteEncryptedBlockObject(DataBlock block, byte[] valueToExpect, byte[] valueToInject, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            //Always read and decrypt first to validate address and data
-            ulong address;
-            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
-            catch (Exception) { return false; }
-            //If we get there without exceptions, the block address is valid
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            header = BlockUtil.DecryptBlock(block.Key, header);
-            var size = ReadUInt32LittleEndian(header.AsSpan()[1..]);
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5 + (int)size, token);
-            var ram = BlockUtil.DecryptBlock(block.Key, data)[5..];
-            if (!ram.SequenceEqual(valueToExpect)) { return false; }
-            //If we get there then both block address and block data are valid, we can safely inject
-            Array.ConstrainedCopy(valueToInject.ToArray(), 0, data, 5, block.Size);
-            data = BlockUtil.EncryptBlock(block.Key, data);
-            await SwitchConnection.WriteBytesAbsoluteAsync(data, address, token).ConfigureAwait(false);
-            return true;
-        }
-
-        private async Task<object?> ReadEncryptedBlock(DataBlock block, CancellationToken token)
-        {
-            return block.Type switch
-            {
-                SCTypeCode.Object => await ReadEncryptedBlockObject(block, token).ConfigureAwait(false),
-                SCTypeCode.Array => await ReadEncryptedBlockArray(block, token).ConfigureAwait(false),
-                SCTypeCode.Bool1 or SCTypeCode.Bool2 or SCTypeCode.Bool3 => await ReadEncryptedBlockBool(block, token).ConfigureAwait(false),
-                SCTypeCode.Byte or SCTypeCode.SByte => await ReadEncryptedBlockByte(block, token).ConfigureAwait(false),
-                SCTypeCode.UInt32 => await ReadEncryptedBlockUint(block, token).ConfigureAwait(false),
-                SCTypeCode.Int32 => await ReadEncryptedBlockInt32(block, token).ConfigureAwait(false),
-                _ => throw new NotSupportedException($"Block {block.Name} (Type {block.Type}) is currently not supported.")
-            };
-        }
-
-        private async Task<byte[]?> ReadEncryptedBlockArray(DataBlock block, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 6 + block.Size, token).ConfigureAwait(false);
-            data = BlockUtil.DecryptBlock(block.Key, data);
-            return data[6..];
-        }
-
-        public async Task<bool> ReadEncryptedBlockBool(DataBlock block, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, block.Size, token).ConfigureAwait(false);
-            var res = BlockUtil.DecryptBlock(block.Key, data);
-            return res[0] == 2;
-        }
-
-        public async Task<sbyte> ReadEncryptedBlockByte(DataBlock block, CancellationToken token)
-        {
-            BaseBlockKeyPointer = await SwitchConnection.PointerAll(Offsets.BlockKeyPointer, token).ConfigureAwait(false);
-            var addr = await SearchSaveKey(BaseBlockKeyPointer, block.Key, token).ConfigureAwait(false);
-            addr = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(addr + 8, 0x8, token).ConfigureAwait(false), 0);
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(addr, 5, token).ConfigureAwait(false);
-            header = DecryptBlock(block.Key, header);
-            return (sbyte)header[1];
-        }
-
-        private async Task<uint> ReadEncryptedBlockUint(DataBlock block, CancellationToken token)
-        {
-            var header = await ReadEncryptedBlockHeader(block, token).ConfigureAwait(false);
-            return ReadUInt32LittleEndian(header.AsSpan()[1..]);
-        }
-
-        private async Task<byte[]?> ReadEncryptedBlockObject(DataBlock block, CancellationToken token)
-        {
-            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
-                throw new InvalidOperationException("No remote connection");
-
-            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
-            header = BlockUtil.DecryptBlock(block.Key, header);
-            var size = ReadUInt32LittleEndian(header.AsSpan()[1..]);
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5 + (int)size, token);
-            var res = BlockUtil.DecryptBlock(block.Key, data)[5..];
-            return res;
-        }
-
-        public async Task<ulong> SearchSaveKey(ulong baseBlock, uint key, CancellationToken token)
-        {
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(baseBlock + 8, 16, token).ConfigureAwait(false);
-            var start = BitConverter.ToUInt64(data.AsSpan()[..8]);
-            var end = BitConverter.ToUInt64(data.AsSpan()[8..]);
-
-            while (start < end)
-            {
-                var block_ct = (end - start) / 48;
-                var mid = start + (block_ct >> 1) * 48;
-
-                data = await SwitchConnection.ReadBytesAbsoluteAsync(mid, 4, token).ConfigureAwait(false);
-                var found = BitConverter.ToUInt32(data);
-                if (found == key)
-                    return mid;
-
-                if (found >= key)
-                    end = mid;
-                else start = mid + 48;
-            }
-            return start;
-        }
-
-        private static byte[] DecryptBlock(uint key, byte[] block)
-        {
-            var rng = new SCXorShift32(key);
-            for (int i = 0; i < block.Length; i++)
-                block[i] = (byte)(block[i] ^ rng.Next());
-            return block;
-        }
-
-        public async Task<ulong> SearchSaveKeyRaid(ulong BaseBlockKeyPointer, uint key, CancellationToken token)
-        {
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(BaseBlockKeyPointer + 8, 16, token).ConfigureAwait(false);
-            var start = BitConverter.ToUInt64(data.AsSpan()[..8]);
-            var end = BitConverter.ToUInt64(data.AsSpan()[8..]);
-
-            while (start < end)
-            {
-                var block_ct = (end - start) / 48;
-                var mid = start + (block_ct >> 1) * 48;
-
-                data = await SwitchConnection.ReadBytesAbsoluteAsync(mid, 4, token).ConfigureAwait(false);
-                var found = BitConverter.ToUInt32(data);
-                if (found == key)
-                    return mid;
-
-                if (found >= key)
-                    end = mid;
-                else start = mid + 48;
-            }
-            return start;
-        }
-
-        public async Task<byte[]> ReadSaveBlockRaid(ulong BaseBlockKeyPointer, uint key, int size, CancellationToken token)
-        {
-            var block_ofs = await SearchSaveKeyRaid(BaseBlockKeyPointer, key, token).ConfigureAwait(false);
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(block_ofs + 8, 0x8, token).ConfigureAwait(false);
-            block_ofs = BitConverter.ToUInt64(data, 0);
-
-            var block = await SwitchConnection.ReadBytesAbsoluteAsync(block_ofs, size, token).ConfigureAwait(false);
-            return DecryptBlock(key, block);
-        }
-
-        public async Task<byte[]> ReadSaveBlockObject(ulong BaseBlockKeyPointer, uint key, CancellationToken token)
-        {
-            var header_ofs = await SearchSaveKeyRaid(BaseBlockKeyPointer, key, token).ConfigureAwait(false);
-            var data = await SwitchConnection.ReadBytesAbsoluteAsync(header_ofs + 8, 8, token).ConfigureAwait(false);
-            header_ofs = BitConverter.ToUInt64(data);
-
-            var header = await SwitchConnection.ReadBytesAbsoluteAsync(header_ofs, 5, token).ConfigureAwait(false);
-            header = DecryptBlock(key, header);
-
-            var size = BitConverter.ToUInt32(header.AsSpan()[1..]);
-            var obj = await SwitchConnection.ReadBytesAbsoluteAsync(header_ofs, (int)size + 5, token).ConfigureAwait(false);
-            return DecryptBlock(key, obj)[5..];
-        }
-
-        public async Task<byte[]> ReadBlockDefault(ulong BaseBlockKeyPointer, uint key, string? cache, bool force, CancellationToken token)
-        {
-            var folder = Path.Combine(Directory.GetCurrentDirectory(), "cache");
-            Directory.CreateDirectory(folder);
-
-            var path = Path.Combine(folder, cache ?? "");
-            if (force is false && cache is not null && File.Exists(path))
-                return File.ReadAllBytes(path);
-
-            var bin = await ReadSaveBlockObject(BaseBlockKeyPointer, key, token).ConfigureAwait(false);
-            File.WriteAllBytes(path, bin);
-            return bin;
-        }
-
         private readonly IReadOnlyList<uint> DifficultyFlags = new List<uint>() { 0xEC95D8EF, 0xA9428DFE, 0x9535F471, 0x6E7F8220 };
 
         public async Task<int> GetStoryProgress(ulong BaseBlockKeyPointer, CancellationToken token)
@@ -972,6 +512,468 @@ namespace SysBot.Pokemon
                         .Replace("{SPD}", SPD).Replace("{SPE}", SPE).Replace("{nature}", nature).Replace("{ability}", ability).Replace("{genderSymbol}", genderSymbol).Replace("{genderText}", genderText);
 
             return raidDescription;
+        }
+
+        // Save Block Additions from TeraFinder/RaidCrawler/sv-livemap
+        public async Task<object?> ReadBlock(DataBlock block, CancellationToken token)
+        {
+            if (block.IsEncrypted)
+                return await ReadEncryptedBlock(block, token).ConfigureAwait(false);
+            else
+                return await ReadDecryptedBlock(block, token).ConfigureAwait(false);
+        }
+
+        public async Task<bool> WriteBlock(object data, DataBlock block, CancellationToken token, object? toExpect = default)
+        {
+            if (block.IsEncrypted)
+                return await WriteEncryptedBlockSafe(block, toExpect, data, token).ConfigureAwait(false);
+            else
+                return await WriteDecryptedBlock((byte[])data!, block, token).ConfigureAwait(false);
+        }
+
+        public async Task<bool> WriteEncryptedBlockSafe(DataBlock block, object? toExpect, object toWrite, CancellationToken token)
+        {
+            if (toExpect == default || toWrite == default)
+                return false;
+
+            return block.Type switch
+            {
+                SCTypeCode.Object => await WriteEncryptedBlockObject(block, (byte[])toExpect, (byte[])toWrite, token),
+                SCTypeCode.Array => await WriteEncryptedBlockArray(block, (byte[])toExpect, (byte[])toWrite, token).ConfigureAwait(false),
+                SCTypeCode.Bool1 or SCTypeCode.Bool2 or SCTypeCode.Bool3 => await WriteEncryptedBlockBool(block, (bool)toExpect, (bool)toWrite, token).ConfigureAwait(false),
+                SCTypeCode.Byte or SCTypeCode.SByte => await WriteEncryptedBlockByte(block, (byte)toExpect, (byte)toWrite, token).ConfigureAwait(false),
+                SCTypeCode.UInt32 => await WriteEncryptedBlockUint(block, (uint)toExpect, (uint)toWrite, token).ConfigureAwait(false),
+                SCTypeCode.Int32 => await WriteEncryptedBlockInt32(block, (int)toExpect, (int)toWrite, token).ConfigureAwait(false),
+                _ => throw new NotSupportedException($"Block {block.Name} (Type {block.Type}) is currently not supported.")
+            };
+        }
+
+        private async Task<bool> WriteEncryptedBlockInt32(DataBlock block, int valueToExpect, int valueToInject, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            //Always read and decrypt first to validate address and data
+            ulong address;
+            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
+            catch (Exception) { return false; }
+            //If we get there without exceptions, the block address is valid
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            //Validate ram data
+            var ram = ReadInt32LittleEndian(header.AsSpan()[1..]);
+            if (ram != valueToExpect) return false;
+            //If we get there then both block address and block data are valid, we can safely inject
+            WriteInt32LittleEndian(header.AsSpan()[1..], valueToInject);
+            header = BlockUtil.EncryptBlock(block.Key, header);
+            await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
+            return true;
+        }
+
+        private async Task<byte[]> ReadDecryptedBlock(DataBlock block, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            var data = await SwitchConnection.PointerPeek(block.Size, block.Pointer!, token).ConfigureAwait(false);
+            return data;
+        }
+
+        private async Task<ulong> GetBlockAddress(DataBlock block, CancellationToken token, bool prepareAddress = true)
+        {
+            KeyBlockAddress = 0;
+
+            if (block.Pointer == null)
+            {
+                Log("Block pointer is null. Aborting operation.");
+                throw new ArgumentNullException(nameof(block.Pointer), "Block pointer cannot be null.");
+            }
+
+            if (KeyBlockAddress == 0)
+                KeyBlockAddress = await SwitchConnection.PointerAll(block.Pointer, token).ConfigureAwait(false);
+
+            var keyblock = await SwitchConnection.ReadBytesAbsoluteAsync(KeyBlockAddress, 16, token).ConfigureAwait(false);
+            if (keyblock == null || keyblock.Length < 16)
+            {
+                Log("Failed to read keyblock or keyblock is too short.");
+                throw new InvalidOperationException("Failed to read keyblock.");
+            }
+
+            var start = BitConverter.ToUInt64(keyblock.AsSpan()[..8]);
+            var end = BitConverter.ToUInt64(keyblock.AsSpan()[8..]);
+            var ct = (ulong)48;
+
+            while (start < end)
+            {
+                var block_ct = (end - start) / ct;
+                var mid = start + (block_ct >> 1) * ct;
+
+                var data = await SwitchConnection.ReadBytesAbsoluteAsync(mid, 4, token).ConfigureAwait(false);
+                if (data == null || data.Length < 4)
+                {
+                    Log("Failed to read data or data is too short.");
+                    continue; // or break, depending on your error handling strategy
+                }
+
+                var found = BitConverter.ToUInt32(data);
+                if (found == block.Key)
+                {
+                    if (prepareAddress)
+                        mid = await PrepareAddress(mid, token).ConfigureAwait(false);
+                    return mid;
+                }
+
+                if (found >= block.Key)
+                    end = mid;
+                else start = mid + ct;
+            }
+
+            Log("Block key not found within the specified range.");
+            throw new ArgumentOutOfRangeException(nameof(block), "Block key not found.");
+        }
+
+        private async Task<ulong> PrepareAddress(ulong address, CancellationToken token) =>
+            BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(address + 8, 8, token).ConfigureAwait(false));
+
+        private async Task<bool> WriteEncryptedBlockUint(DataBlock block, uint valueToExpect, uint valueToInject, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            //Always read and decrypt first to validate address and data
+            ulong address;
+            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
+            catch (Exception) { return false; }
+            //If we get there without exceptions, the block address is valid
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            //Validate ram data
+            var ram = ReadUInt32LittleEndian(header.AsSpan()[1..]);
+            if (ram != valueToExpect) return false;
+            //If we get there then both block address and block data are valid, we can safely inject
+            WriteUInt32LittleEndian(header.AsSpan()[1..], valueToInject);
+            header = BlockUtil.EncryptBlock(block.Key, header);
+            await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
+            return true;
+        }
+
+        private async Task<byte[]> ReadEncryptedBlockHeader(DataBlock block, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            return header;
+        }
+
+        private async Task<int> ReadEncryptedBlockInt32(DataBlock block, CancellationToken token)
+        {
+            var header = await ReadEncryptedBlockHeader(block, token).ConfigureAwait(false);
+            return ReadInt32LittleEndian(header.AsSpan()[1..]);
+        }
+
+        public async Task<bool> WriteEncryptedBlockSByte(DataBlock block, sbyte valueToExpect, sbyte valueToInject, CancellationToken token)
+        {
+            Log("Starting WriteEncryptedBlockSByte method.");
+
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+            {
+                Log("No remote connection. Aborting write operation.");
+                throw new InvalidOperationException("No remote connection");
+            }
+
+            ulong address;
+            try
+            {
+                address = await GetBlockAddress(block, token).ConfigureAwait(false);
+                Log($"Block address obtained: {address}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Exception in getting block address: {ex.Message}");
+                return false;
+            }
+
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            Log("Header decrypted.");
+
+            // Directly inject new value without checking current RAM value
+            header[1] = (byte)valueToInject; // Convert sbyte to byte for writing
+            header = BlockUtil.EncryptBlock(block.Key, header);
+            Log("Header encrypted with new value.");
+
+            try
+            {
+                await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
+                Log("Write operation successful.");
+            }
+            catch (Exception ex)
+            {
+                Log($"Exception in write operation: {ex.Message}");
+                return false;
+            }
+
+            return true;
+        }
+
+        public async Task<bool> WriteEncryptedBlockByte(DataBlock block, byte valueToExpect, byte valueToInject, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            //Always read and decrypt first to validate address and data
+            ulong address;
+            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
+            catch (Exception) { return false; }
+            //If we get there without exceptions, the block address is valid
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            //Validate ram data
+            var ram = header[1];
+            if (ram != valueToExpect) return false;
+            //If we get there then both block address and block data are valid, we can safely inject
+            header[1] = valueToInject;
+            header = BlockUtil.EncryptBlock(block.Key, header);
+            await SwitchConnection.WriteBytesAbsoluteAsync(header, address, token).ConfigureAwait(false);
+            return true;
+        }
+
+        private async Task<bool> WriteDecryptedBlock(byte[] data, DataBlock block, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            var pointer = await SwitchConnection.PointerAll(block.Pointer!, token).ConfigureAwait(false);
+            await SwitchConnection.WriteBytesAbsoluteAsync(data, pointer, token).ConfigureAwait(false);
+
+            return true;
+        }
+
+        private async Task<bool> WriteEncryptedBlockBool(DataBlock block, bool valueToExpect, bool valueToInject, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            //Always read and decrypt first to validate address and data
+            ulong address;
+            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
+            catch (Exception) { return false; }
+            //If we get there without exceptions, the block address is valid
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, block.Size, token).ConfigureAwait(false);
+            data = BlockUtil.DecryptBlock(block.Key, data);
+            //Validate ram data
+            var ram = data[0] == 2;
+            if (ram != valueToExpect) return false;
+            //If we get there then both block address and block data are valid, we can safely inject
+            data[0] = valueToInject ? (byte)2 : (byte)1;
+            data = BlockUtil.EncryptBlock(block.Key, data);
+            await SwitchConnection.WriteBytesAbsoluteAsync(data, address, token).ConfigureAwait(false);
+            return true;
+        }
+
+        private async Task<bool> WriteEncryptedBlockArray(DataBlock block, byte[] arrayToExpect, byte[] arrayToInject, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            //Always read and decrypt first to validate address and data
+            ulong address;
+            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
+            catch (Exception) { return false; }
+            //If we get there without exceptions, the block address is valid
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 6 + block.Size, token).ConfigureAwait(false);
+            data = BlockUtil.DecryptBlock(block.Key, data);
+            //Validate ram data
+            var ram = data[6..];
+            if (!ram.SequenceEqual(arrayToExpect)) return false;
+            //If we get there then both block address and block data are valid, we can safely inject
+            Array.ConstrainedCopy(arrayToInject, 0, data, 6, block.Size);
+            data = BlockUtil.EncryptBlock(block.Key, data);
+            await SwitchConnection.WriteBytesAbsoluteAsync(data, address, token).ConfigureAwait(false);
+            return true;
+        }
+
+        public async Task<bool> WriteEncryptedBlockObject(DataBlock block, byte[] valueToExpect, byte[] valueToInject, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            //Always read and decrypt first to validate address and data
+            ulong address;
+            try { address = await GetBlockAddress(block, token).ConfigureAwait(false); }
+            catch (Exception) { return false; }
+            //If we get there without exceptions, the block address is valid
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            var size = ReadUInt32LittleEndian(header.AsSpan()[1..]);
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5 + (int)size, token);
+            var ram = BlockUtil.DecryptBlock(block.Key, data)[5..];
+            if (!ram.SequenceEqual(valueToExpect)) { return false; }
+            //If we get there then both block address and block data are valid, we can safely inject
+            Array.ConstrainedCopy(valueToInject.ToArray(), 0, data, 5, block.Size);
+            data = BlockUtil.EncryptBlock(block.Key, data);
+            await SwitchConnection.WriteBytesAbsoluteAsync(data, address, token).ConfigureAwait(false);
+            return true;
+        }
+
+        private async Task<object?> ReadEncryptedBlock(DataBlock block, CancellationToken token)
+        {
+            return block.Type switch
+            {
+                SCTypeCode.Object => await ReadEncryptedBlockObject(block, token).ConfigureAwait(false),
+                SCTypeCode.Array => await ReadEncryptedBlockArray(block, token).ConfigureAwait(false),
+                SCTypeCode.Bool1 or SCTypeCode.Bool2 or SCTypeCode.Bool3 => await ReadEncryptedBlockBool(block, token).ConfigureAwait(false),
+                SCTypeCode.Byte or SCTypeCode.SByte => await ReadEncryptedBlockByte(block, token).ConfigureAwait(false),
+                SCTypeCode.UInt32 => await ReadEncryptedBlockUint(block, token).ConfigureAwait(false),
+                SCTypeCode.Int32 => await ReadEncryptedBlockInt32(block, token).ConfigureAwait(false),
+                _ => throw new NotSupportedException($"Block {block.Name} (Type {block.Type}) is currently not supported.")
+            };
+        }
+
+        private async Task<byte[]?> ReadEncryptedBlockArray(DataBlock block, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 6 + block.Size, token).ConfigureAwait(false);
+            data = BlockUtil.DecryptBlock(block.Key, data);
+            return data[6..];
+        }
+
+        public async Task<bool> ReadEncryptedBlockBool(DataBlock block, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, block.Size, token).ConfigureAwait(false);
+            var res = BlockUtil.DecryptBlock(block.Key, data);
+            return res[0] == 2;
+        }
+
+        public async Task<sbyte> ReadEncryptedBlockByte(DataBlock block, CancellationToken token)
+        {
+            BaseBlockKeyPointer = await SwitchConnection.PointerAll(Offsets.BlockKeyPointer, token).ConfigureAwait(false);
+            var addr = await SearchSaveKey(BaseBlockKeyPointer, block.Key, token).ConfigureAwait(false);
+            addr = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(addr + 8, 0x8, token).ConfigureAwait(false), 0);
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(addr, 5, token).ConfigureAwait(false);
+            header = DecryptBlock(block.Key, header);
+            return (sbyte)header[1];
+        }
+
+        private async Task<uint> ReadEncryptedBlockUint(DataBlock block, CancellationToken token)
+        {
+            var header = await ReadEncryptedBlockHeader(block, token).ConfigureAwait(false);
+            return ReadUInt32LittleEndian(header.AsSpan()[1..]);
+        }
+
+        private async Task<byte[]?> ReadEncryptedBlockObject(DataBlock block, CancellationToken token)
+        {
+            if (Config.Connection.Protocol is SwitchProtocol.WiFi && !Connection.Connected)
+                throw new InvalidOperationException("No remote connection");
+
+            var address = await GetBlockAddress(block, token).ConfigureAwait(false);
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5, token).ConfigureAwait(false);
+            header = BlockUtil.DecryptBlock(block.Key, header);
+            var size = ReadUInt32LittleEndian(header.AsSpan()[1..]);
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(address, 5 + (int)size, token);
+            var res = BlockUtil.DecryptBlock(block.Key, data)[5..];
+            return res;
+        }
+
+        public async Task<ulong> SearchSaveKey(ulong baseBlock, uint key, CancellationToken token)
+        {
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(baseBlock + 8, 16, token).ConfigureAwait(false);
+            var start = BitConverter.ToUInt64(data.AsSpan()[..8]);
+            var end = BitConverter.ToUInt64(data.AsSpan()[8..]);
+
+            while (start < end)
+            {
+                var block_ct = (end - start) / 48;
+                var mid = start + (block_ct >> 1) * 48;
+
+                data = await SwitchConnection.ReadBytesAbsoluteAsync(mid, 4, token).ConfigureAwait(false);
+                var found = BitConverter.ToUInt32(data);
+                if (found == key)
+                    return mid;
+
+                if (found >= key)
+                    end = mid;
+                else start = mid + 48;
+            }
+            return start;
+        }
+
+        private static byte[] DecryptBlock(uint key, byte[] block)
+        {
+            var rng = new SCXorShift32(key);
+            for (int i = 0; i < block.Length; i++)
+                block[i] = (byte)(block[i] ^ rng.Next());
+            return block;
+        }
+
+        public async Task<ulong> SearchSaveKeyRaid(ulong BaseBlockKeyPointer, uint key, CancellationToken token)
+        {
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(BaseBlockKeyPointer + 8, 16, token).ConfigureAwait(false);
+            var start = BitConverter.ToUInt64(data.AsSpan()[..8]);
+            var end = BitConverter.ToUInt64(data.AsSpan()[8..]);
+
+            while (start < end)
+            {
+                var block_ct = (end - start) / 48;
+                var mid = start + (block_ct >> 1) * 48;
+
+                data = await SwitchConnection.ReadBytesAbsoluteAsync(mid, 4, token).ConfigureAwait(false);
+                var found = BitConverter.ToUInt32(data);
+                if (found == key)
+                    return mid;
+
+                if (found >= key)
+                    end = mid;
+                else start = mid + 48;
+            }
+            return start;
+        }
+
+        public async Task<byte[]> ReadSaveBlockRaid(ulong BaseBlockKeyPointer, uint key, int size, CancellationToken token)
+        {
+            var block_ofs = await SearchSaveKeyRaid(BaseBlockKeyPointer, key, token).ConfigureAwait(false);
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(block_ofs + 8, 0x8, token).ConfigureAwait(false);
+            block_ofs = BitConverter.ToUInt64(data, 0);
+
+            var block = await SwitchConnection.ReadBytesAbsoluteAsync(block_ofs, size, token).ConfigureAwait(false);
+            return DecryptBlock(key, block);
+        }
+
+        public async Task<byte[]> ReadSaveBlockObject(ulong BaseBlockKeyPointer, uint key, CancellationToken token)
+        {
+            var header_ofs = await SearchSaveKeyRaid(BaseBlockKeyPointer, key, token).ConfigureAwait(false);
+            var data = await SwitchConnection.ReadBytesAbsoluteAsync(header_ofs + 8, 8, token).ConfigureAwait(false);
+            header_ofs = BitConverter.ToUInt64(data);
+
+            var header = await SwitchConnection.ReadBytesAbsoluteAsync(header_ofs, 5, token).ConfigureAwait(false);
+            header = DecryptBlock(key, header);
+
+            var size = BitConverter.ToUInt32(header.AsSpan()[1..]);
+            var obj = await SwitchConnection.ReadBytesAbsoluteAsync(header_ofs, (int)size + 5, token).ConfigureAwait(false);
+            return DecryptBlock(key, obj)[5..];
+        }
+
+        public async Task<byte[]> ReadBlockDefault(ulong BaseBlockKeyPointer, uint key, string? cache, bool force, CancellationToken token)
+        {
+            var folder = Path.Combine(Directory.GetCurrentDirectory(), "cache");
+            Directory.CreateDirectory(folder);
+
+            var path = Path.Combine(folder, cache ?? "");
+            if (force is false && cache is not null && File.Exists(path))
+                return File.ReadAllBytes(path);
+
+            var bin = await ReadSaveBlockObject(BaseBlockKeyPointer, key, token).ConfigureAwait(false);
+            File.WriteAllBytes(path, bin);
+            return bin;
         }
     }
 }

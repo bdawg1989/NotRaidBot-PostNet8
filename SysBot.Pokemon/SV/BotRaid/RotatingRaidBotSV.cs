@@ -1212,7 +1212,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log($"Synced seed from index {index} to index {targetIndex}");
         }
 
-
         private async Task SwapRaidLocationsAsync(int currentRaidIndex, string raidType, CancellationToken token)
         {
             // We always swap with index 0
@@ -1266,7 +1265,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 hasSwapped = false;
             }
         }
-
 
         private async Task<uint> ReadValue(string fieldName, int size, List<long> pointer, CancellationToken token)
         {
@@ -2647,22 +2645,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             return (x, y, z);
         }
-
-        /*
-        private async Task LogCurrentRotation(CancellationToken token)
-        {
-            // Read the rotation data block
-            var rotationData = (byte[])await ReadBlock(RaidDataBlocks.KPlayerRotation, token);
-
-            // Extract the rotation values
-            float rx = BitConverter.ToSingle(rotationData, 0);
-            float ry = BitConverter.ToSingle(rotationData, 4);
-            float rz = BitConverter.ToSingle(rotationData, 8);
-            float rw = BitConverter.ToSingle(rotationData, 12);
-
-            // Log the rotation values
-            Log($"Current Rotation: RX={rx}, RY={ry}, RZ={rz}, RW={rw}");
-        } */
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
