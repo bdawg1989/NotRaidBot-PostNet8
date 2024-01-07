@@ -3271,7 +3271,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 var seed = BitConverter.ToUInt32(dataB.AsSpan((i - startIndex) * 0x20, 4));
                 if (seed == denHexSeedUInt)
                 {
-                    SeedIndexToReplace = i - 1;
+                    SeedIndexToReplace = i;
                     Log($"Index Found: {SeedIndexToReplace}");
                     return;
                 }
