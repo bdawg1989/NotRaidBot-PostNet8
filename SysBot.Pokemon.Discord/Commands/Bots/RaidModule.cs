@@ -499,6 +499,38 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 _ => GameProgress.Unlocked6Stars
             };
         }
+        public bool CheckProgressandLevel(int level, int storyProgressLevel)
+        {
+            if (level == 7 && storyProgressLevel != 6)
+                return false;
+            else if (level == 6 && storyProgressLevel <= 5)
+                return false;
+            else if (level == 5 && storyProgressLevel <= 4)
+                return false;
+            else if (level == 4 && storyProgressLevel <= 3)
+                return false;
+            else if (level == 3 && storyProgressLevel <= 2)
+                return false;
+            else if (level == 2 && storyProgressLevel <= 1)
+                return false;
+            else if (level == 1 && storyProgressLevel > 2)
+                return false;
+            else
+                return true;
+        }
+
+        public string GetRequiredProgress(int starCount)
+        {
+            return starCount switch
+            {
+                6 or 7 => "6☆ Unlocked Progress",
+                5 => "5☆ Unlocked Progress or higher",
+                4 => "4☆ Unlocked Progress or higher",
+                3 => "3☆ Unlocked Progress or higher",
+                2 => "2☆ Unlocked Progress",
+                _ => "1☆ or 2☆ Unlocked Progress",
+            };
+        }
 
         public bool CheckProgressandLevel(int level, int storyProgressLevel)
         { 

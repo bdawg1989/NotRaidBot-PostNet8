@@ -5,12 +5,14 @@ using RaidCrawler.Core.Structures;
 using SysBot.Base;
 using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,6 +51,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         private int EventProgress;
         private int EmptyRaid = 0;
         private int LostRaid = 0;
+        private int FieldID = 0;
         private bool firstRun = true;
         public static int RotationCount { get; set; }
         private ulong TodaySeed;
@@ -75,9 +78,11 @@ namespace SysBot.Pokemon.SV.BotRaid
         private uint denIdIndex0;
         private uint areaIdIndex1;
         private uint denIdIndex1;
+        private string denHexSeed;
         private bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
         private static int BlueberryDensCount = 0;
+        private int InvalidDeliveryGroupCount = 0;
 
         public override async Task MainLoop(CancellationToken token)
         {
@@ -314,12 +319,11 @@ namespace SysBot.Pokemon.SV.BotRaid
             bool partyReady;
             List<(ulong, RaidMyStatus)> lobbyTrainers;
             StartTime = DateTime.Now;
-            var dayRoll = 0;
             RotationCount = 0;
             var raidsHosted = 0;
+
             while (!token.IsCancellationRequested)
             {
-
                 // Initialize offsets at the start of the routine and cache them.
                 await InitializeSessionOffsets(token).ConfigureAwait(false);
                 if (RaidCount == 0)
@@ -338,83 +342,20 @@ namespace SysBot.Pokemon.SV.BotRaid
                     if (TodaySeed != currentSeed)
                     {
                         Log($"Current Today Seed {currentSeed:X8} does not match Starting Today Seed: {TodaySeed:X8}.\nAttempting to override Today Seed...");
-                        TodaySeed = currentSeed;  // Update the TodaySeed to the currentSeed
-                        await OverrideTodaySeed(token).ConfigureAwait(false); // Override the Today Seed in the game to match the currentSeed
+                        TodaySeed = currentSeed;
+                        await OverrideTodaySeed(token).ConfigureAwait(false);
                         Log("Today Seed has been overridden with the current seed.");
                     }
 
                     if (LobbyError >= 2)
                     {
-                        msg = $"Failed to create a lobby {LobbyError} times.\n ";
-                        dayRoll++;
+                        msg = $"Failed to create a lobby {LobbyError} times.\n";
+                        Log(msg);
+                        await CloseGame(Hub.Config, token).ConfigureAwait(false);
+                        await StartGameRaid(Hub.Config, token).ConfigureAwait(false);
+                        LobbyError = 0;
+                        continue;
                     }
-
-                    if (dayRoll != 0 && SeedIndexToReplace != -1 && RaidCount != 0)
-                    {
-                        Log(msg + "Raid Lost initiating recovery sequence.");
-                        bool denFound = false;
-                        while (!denFound)
-                        {
-                            await Click(B, 0_500, token).ConfigureAwait(false);
-                            await Click(HOME, 3_500, token).ConfigureAwait(false);
-                            Log("Closed out of the game!");
-
-                            await RolloverCorrectionSV(token).ConfigureAwait(false);
-                            await Click(A, 1_500, token).ConfigureAwait(false);
-                            Log("Back in the game!");
-
-                            while (!await IsConnectedOnline(ConnectedOffset, token).ConfigureAwait(false))
-                            {
-                                Log("Connecting...");
-                                if (!await ConnectToOnline(Hub.Config, token).ConfigureAwait(false))
-                                    continue;
-
-                                await RecoverToOverworld(token).ConfigureAwait(false);
-                            }
-
-                            await RecoverToOverworld(token).ConfigureAwait(false);
-
-                            // Check if there's a lobby.
-                            if (!await GetLobbyReady(true, token).ConfigureAwait(false))
-                            {
-                                continue;
-                            }
-                            else
-                            {
-                                Log("Den Found, continuing routine!");
-                                TodaySeed = BitConverter.ToUInt64(await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 8, token).ConfigureAwait(false), 0);
-                                LobbyError = 0;
-                                denFound = true;
-                                firstRun = true;
-                                hasSwapped = false;
-                                originalIdsSet = false;
-                                indicesInitialized = false;
-                                await Task.Delay(5_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(3_000, token).ConfigureAwait(false);
-                                await Click(A, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(5_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Click(B, 1_000, token).ConfigureAwait(false);
-                                await Task.Delay(1_000, token).ConfigureAwait(false);
-
-                            }
-                        };
-                        await Task.Delay(0_050, token).ConfigureAwait(false);
-                        if (denFound)
-                        {
-                            await SVSaveGameOverworld(token).ConfigureAwait(false);
-                            await Task.Delay(0_500, token).ConfigureAwait(false);
-                            await Click(B, 1_000, token).ConfigureAwait(false);
-                            continue;
-                        }
-                    }
-                    Log(msg);
-                    await CloseGame(Hub.Config, token).ConfigureAwait(false);
-                    await RolloverCorrectionSV(token).ConfigureAwait(false);
-                    await StartGameRaid(Hub.Config, token).ConfigureAwait(false);
-                    dayRoll++;
-                    continue;
                 }
 
                 // Clear NIDs.
@@ -545,7 +486,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == 0)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Raid Den Located at {i + 1:00} in Kitakami.");
+                    Log($"Raid Den Located at {i} in Kitakami.");
                     IsKitakami = true;
                     return;
                 }
@@ -566,7 +507,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
             Log($"Index not located.");
         }
-
 
         private async Task CompleteRaid(CancellationToken token)
         {
@@ -630,12 +570,26 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task<bool> CheckIfConnectedToLobbyAndLog(CancellationToken token)
         {
-            if (await IsConnectedToLobby(token).ConfigureAwait(false))
+            try
             {
-                Log("Preparing for battle!");
-                return true;
+                if (await IsConnectedToLobby(token).ConfigureAwait(false))
+                {
+                    Log("Preparing for battle!");
+                    return true;
+                }
+                else
+                {
+                    Log("Not connected to lobby, reopening game.");
+                    await ReOpenGame(Hub.Config, token);
+                    return false;
+                }
             }
-            return false;
+            catch (Exception ex) // Catch the appropriate exception
+            {
+                Log($"Error checking lobby connection: {ex.Message}, reopening game.");
+                await ReOpenGame(Hub.Config, token);
+                return false;
+            }
         }
 
         private async Task<bool> EnsureInRaid(CancellationToken linkedToken)
@@ -644,12 +598,20 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             while (!await IsInRaid(linkedToken).ConfigureAwait(false))
             {
-                if (linkedToken.IsCancellationRequested || (DateTime.Now - startTime).TotalMinutes > 5) // 5-minute timeout
+                if (linkedToken.IsCancellationRequested || (DateTime.Now - startTime).TotalMinutes > 5)
                 {
-                    Log("Timeout reached or cancellation requested, resetting to recover.");
-                    await ReOpenGame(Hub.Config, linkedToken).ConfigureAwait(false);
+                    Log("Timeout reached or cancellation requested, reopening game.");
+                    await ReOpenGame(Hub.Config, linkedToken);
                     return false;
                 }
+
+                if (!await IsConnectedToLobby(linkedToken).ConfigureAwait(false))
+                {
+                    Log("Lost connection to lobby, reopening game.");
+                    await ReOpenGame(Hub.Config, linkedToken);
+                    return false;
+                }
+
                 await Click(A, 1_000, linkedToken).ConfigureAwait(false);
             }
             return true;
@@ -880,13 +842,12 @@ namespace SysBot.Pokemon.SV.BotRaid
         private async Task FinalizeRaidCompletion(List<(ulong, RaidMyStatus)> trainers, bool ready, CancellationToken token)
         {
             Log("Returning to overworld...");
-            await Task.Delay(3_500, token).ConfigureAwait(false);
+            await Task.Delay(2_500, token).ConfigureAwait(false);
             while (!await IsOnOverworld(OverworldOffset, token).ConfigureAwait(false))
                 await Click(A, 1_000, token).ConfigureAwait(false);
 
             await LocateSeedIndex(token).ConfigureAwait(false);
             await CountRaids(trainers, token).ConfigureAwait(false);
-            await Task.Delay(1_500, token).ConfigureAwait(false);
             // Update RotationCount after locating seed index
             if (Settings.ActiveRaids.Count > 1)
             {
@@ -1371,7 +1332,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 return new List<long>(Offsets.RaidBlockPointerK)
                 {
-                    [3] = 0xCE8 + ((index - 70) * 0x20) 
+                    [3] = 0xCE8 + ((index - 70) * 0x20)
                 };
             }
             else if (IsBlueberry)
@@ -1398,7 +1359,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             {
                 return new List<long>(Offsets.RaidBlockPointerP)
                 {
-                    [3] = 0x40 + ((index + 1) * 0x20)
+                    [3] = 0x60 + index * 0x20
                 };
             }
             else if (index < 94)
@@ -1621,40 +1582,33 @@ namespace SysBot.Pokemon.SV.BotRaid
             await Task.Delay(0_500, token).ConfigureAwait(false);
             await Click(HOME, 0_500, token).ConfigureAwait(false);
             await Click(HOME, 0_500, token).ConfigureAwait(false);
-            // Check if firstRun is false before injecting PartyPK
-            if (!firstRun)
-            {
-                var len = string.Empty;
-                foreach (var l in Settings.ActiveRaids[RotationCount].PartyPK)
-                    len += l;
-                if (len.Length > 1 && EmptyRaid == 0)
-                {
-                    Log("Preparing PartyPK. Sit tight.");
-                    await Task.Delay(2_500 + settings.ExtraTimeLobbyDisband, token).ConfigureAwait(false);
-                    await SetCurrentBox(0, token).ConfigureAwait(false);
-                    var res = string.Join("\n", Settings.ActiveRaids[RotationCount].PartyPK);
-                    if (res.Length > 4096)
-                        res = res[..4096];
-                    await InjectPartyPk(res, token).ConfigureAwait(false);
 
-                    await Click(X, 2_000, token).ConfigureAwait(false);
-                    await Click(DRIGHT, 0_500, token).ConfigureAwait(false);
-                    await SetStick(SwitchStick.LEFT, 0, -32000, 1_000, token).ConfigureAwait(false);
-                    await SetStick(SwitchStick.LEFT, 0, 0, 0, token).ConfigureAwait(false);
-                    for (int i = 0; i < 2; i++)
-                        await Click(DDOWN, 0_500, token).ConfigureAwait(false);
-                    await Click(A, 3_500, token).ConfigureAwait(false);
-                    await Click(Y, 0_500, token).ConfigureAwait(false);
-                    await Click(DLEFT, 0_800, token).ConfigureAwait(false);
-                    await Click(Y, 0_500, token).ConfigureAwait(false);
-                    for (int i = 0; i < 2; i++)
-                        await Click(B, 1_500, token).ConfigureAwait(false);
-                    Log("PartyPK switch successful.");
-                }
-            }
-            else
+            var len = string.Empty;
+            foreach (var l in Settings.ActiveRaids[RotationCount].PartyPK)
+                len += l;
+            if (len.Length > 1 && EmptyRaid == 0)
             {
-                Log("First run detected, skipping PartyPK injection.");
+                Log("Preparing PartyPK. Sit tight.");
+                await Task.Delay(2_500 + settings.ExtraTimeLobbyDisband, token).ConfigureAwait(false);
+                await SetCurrentBox(0, token).ConfigureAwait(false);
+                var res = string.Join("\n", Settings.ActiveRaids[RotationCount].PartyPK);
+                if (res.Length > 4096)
+                    res = res[..4096];
+                await InjectPartyPk(res, token).ConfigureAwait(false);
+
+                await Click(X, 2_000, token).ConfigureAwait(false);
+                await Click(DRIGHT, 0_500, token).ConfigureAwait(false);
+                await SetStick(SwitchStick.LEFT, 0, -32000, 1_000, token).ConfigureAwait(false);
+                await SetStick(SwitchStick.LEFT, 0, 0, 0, token).ConfigureAwait(false);
+                for (int i = 0; i < 2; i++)
+                    await Click(DDOWN, 0_500, token).ConfigureAwait(false);
+                await Click(A, 3_500, token).ConfigureAwait(false);
+                await Click(Y, 0_500, token).ConfigureAwait(false);
+                await Click(DLEFT, 0_800, token).ConfigureAwait(false);
+                await Click(Y, 0_500, token).ConfigureAwait(false);
+                for (int i = 0; i < 2; i++)
+                    await Click(B, 1_500, token).ConfigureAwait(false);
+                Log("PartyPK switch successful.");
             }
 
             for (int i = 0; i < 4; i++)
@@ -2033,6 +1987,23 @@ namespace SysBot.Pokemon.SV.BotRaid
             RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
             RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
+            sbyte FieldID = await ReadEncryptedBlockByte(RaidDataBlocks.KPlayerCurrentFieldID, token).ConfigureAwait(false);
+            string regionName = FieldID switch
+            {
+                0 => "Paldea",
+                1 => "Kitakami",
+                2 => "Blueberry",
+                _ => "Unknown"
+            };
+            Log($"Player in Region: {regionName}");
+            if (regionName == "Kitakami")
+            {
+                IsKitakami = true;
+            }
+            else if (regionName == "Blueberry")
+            {
+                IsBlueberry = true;
+            }
             if (firstRun)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);
@@ -2105,12 +2076,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task EnqueueEmbed(List<string>? names, string message, bool hatTrick, bool disband, bool upnext, bool raidstart, CancellationToken token)
         {
-            if (firstRun)
-            {
-                // First Run detected. Not sending the embed to start raid rotation.
-                return;
-            }
-
             string code = string.Empty;
 
             // Determine if the raid is a "Free For All" based on the settings and conditions
@@ -2372,7 +2337,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (token.IsCancellationRequested)
                 {
                     Log("Connection attempt canceled.");
-                    break; 
+                    break;
                 }
                 try
                 {
@@ -2590,10 +2555,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                         Log("Overworld Spawns are already enabled, no action needed.");
                     }
                 }
-
                 Log($"Attempting to override seed for {Settings.ActiveRaids[RotationCount].Species}.");
                 await OverrideSeedIndex(SeedIndexToReplace, token).ConfigureAwait(false);
                 Log("Seed override completed.");
+
+                await Task.Delay(1_000, token).ConfigureAwait(false);
+                await InitializeRaidBlockPointers(token);
+                await LogPlayerLocation(token); // Teleports user to closest Active Den
+
                 if (Settings.RaidSettings.MysteryRaids && !firstRun)
                 {
                     // Count the number of existing Mystery Shiny Raids
@@ -2628,6 +2597,261 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log("Back in the overworld!");
 
             LostRaid = 0;
+        }
+
+        private Dictionary<string, float[]> LoadDenLocations(string resourceName)
+        {
+            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName);
+            using var reader = new StreamReader(stream);
+            string json = reader.ReadToEnd();
+            return JsonConvert.DeserializeObject<Dictionary<string, float[]>>(json);
+        }
+
+        private string FindNearestLocation((float, float, float) playerLocation, Dictionary<string, float[]> denLocations)
+        {
+            string nearestDen = null;
+            float minDistance = float.MaxValue;
+
+            foreach (var den in denLocations)
+            {
+                var denLocation = den.Value;
+                float distance = CalculateDistance(playerLocation, (denLocation[0], denLocation[1], denLocation[2]));
+
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    nearestDen = den.Key;
+                }
+            }
+
+            return nearestDen;
+        }
+
+        private float CalculateDistance((float, float, float) loc1, (float, float, float) loc2)
+        {
+            return (float)Math.Sqrt(
+                Math.Pow(loc1.Item1 - loc2.Item1, 2) +
+                Math.Pow(loc1.Item2 - loc2.Item2, 2) +
+                Math.Pow(loc1.Item3 - loc2.Item3, 2));
+        }
+
+        private async Task<(float, float, float)> GetPlayersLocation(CancellationToken token)
+        {
+            // Read the data block (automatically handles encryption)
+            var data = (byte[])await ReadBlock(RaidDataBlocks.KCoordinates, token);
+
+            // Extract coordinates
+            float x = BitConverter.ToSingle(data, 0);
+            float y = BitConverter.ToSingle(data, 4);
+            float z = BitConverter.ToSingle(data, 8);
+
+            return (x, y, z);
+        }
+
+        /*
+        private async Task LogCurrentRotation(CancellationToken token)
+        {
+            // Read the rotation data block
+            var rotationData = (byte[])await ReadBlock(RaidDataBlocks.KPlayerRotation, token);
+
+            // Extract the rotation values
+            float rx = BitConverter.ToSingle(rotationData, 0);
+            float ry = BitConverter.ToSingle(rotationData, 4);
+            float rz = BitConverter.ToSingle(rotationData, 8);
+            float rw = BitConverter.ToSingle(rotationData, 12);
+
+            // Log the rotation values
+            Log($"Current Rotation: RX={rx}, RY={ry}, RZ={rz}, RW={rw}");
+        } */
+
+        public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
+        {
+            const float offset = 1.4f;
+            x += offset;
+
+            // Convert coordinates to byte array
+            byte[] xBytes = BitConverter.GetBytes(x);
+            byte[] yBytes = BitConverter.GetBytes(y);
+            byte[] zBytes = BitConverter.GetBytes(z);
+            byte[] coordinatesData = new byte[xBytes.Length + yBytes.Length + zBytes.Length];
+            Array.Copy(xBytes, 0, coordinatesData, 0, xBytes.Length);
+            Array.Copy(yBytes, 0, coordinatesData, xBytes.Length, yBytes.Length);
+            Array.Copy(zBytes, 0, coordinatesData, xBytes.Length + yBytes.Length, zBytes.Length);
+
+            // Write the coordinates
+            var teleportBlock = RaidDataBlocks.KCoordinates;
+            teleportBlock.Size = coordinatesData.Length;
+            var currentCoordinateData = (byte[])await ReadBlock(teleportBlock, token);
+            bool writeCoordinateSuccess = await WriteEncryptedBlockSafe(teleportBlock, currentCoordinateData, coordinatesData, token);
+
+            // Set rotation to face North
+            float northRX = 0.0f;
+            float northRY = -0.63828725f;
+            float northRZ = 0.0f;
+            float northRW = 0.7697983f;
+
+            // Convert rotation to byte array
+            byte[] rotationData = new byte[16];
+            Buffer.BlockCopy(BitConverter.GetBytes(northRX), 0, rotationData, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(northRY), 0, rotationData, 4, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(northRZ), 0, rotationData, 8, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(northRW), 0, rotationData, 12, 4);
+
+            // Write the rotation
+            var rotationBlock = RaidDataBlocks.KPlayerRotation;
+            rotationBlock.Size = rotationData.Length;
+            var currentRotationData = (byte[])await ReadBlock(rotationBlock, token);
+            bool writeRotationSuccess = await WriteEncryptedBlockSafe(rotationBlock, currentRotationData, rotationData, token);
+        }
+
+        private async Task<List<(uint Area, uint LotteryGroup, uint Den, uint Seed)>> ExtractRaidInfo(TeraRaidMapParent mapType, CancellationToken token)
+        {
+            byte[] raidData;
+            switch (mapType)
+            {
+                case TeraRaidMapParent.Paldea:
+                    raidData = await ReadPaldeaRaids(token);
+                    break;
+                case TeraRaidMapParent.Kitakami:
+                    raidData = await ReadKitakamiRaids(token);
+                    break;
+                case TeraRaidMapParent.Blueberry:
+                    raidData = await ReadBlueberryRaids(token);
+                    break;
+                default:
+                    throw new InvalidOperationException("Invalid region");
+            }
+
+            var raids = new List<(uint Area, uint LotteryGroup, uint Den, uint Seed)>();
+            for (int i = 0; i < raidData.Length; i += Raid.SIZE)
+            {
+                var area = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 4, 4));
+                var lotteryGroup = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 8, 4));
+                var den = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 12, 4));
+                var seed = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 16, 4)); // Assuming the seed is at offset 16
+                raids.Add((Area: area, LotteryGroup: lotteryGroup, Den: den, Seed: seed));
+            }
+
+            return raids;
+        }
+
+        private async Task LogPlayerLocation(CancellationToken token)
+        {
+            var playerLocation = await GetPlayersLocation(token);
+
+            // Load den locations for all regions
+            var blueberryLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_blueberry.json");
+            var kitakamiLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_kitakami.json");
+            var baseLocations = LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_base.json");
+
+            // Find the nearest location for each set and keep track of the overall nearest
+            var nearestDen = new Dictionary<string, string>
+    {
+        { "Blueberry", FindNearestLocation(playerLocation, blueberryLocations) },
+        { "Kitakami", FindNearestLocation(playerLocation, kitakamiLocations) },
+        { "Paldea", FindNearestLocation(playerLocation, baseLocations) }
+    };
+
+            var overallNearest = nearestDen.Select(kv =>
+            {
+                var denLocationArray = kv.Key switch
+                {
+                    "Blueberry" => blueberryLocations[kv.Value],
+                    "Kitakami" => kitakamiLocations[kv.Value],
+                    "Paldea" => baseLocations[kv.Value],
+                    _ => throw new InvalidOperationException("Invalid region")
+                };
+
+                var denLocationTuple = (denLocationArray[0], denLocationArray[1], denLocationArray[2]);
+                return new { Region = kv.Key, DenIdentifier = kv.Value, Distance = CalculateDistance(playerLocation, denLocationTuple) };
+            })
+            .OrderBy(d => d.Distance)
+            .First();
+
+            TeraRaidMapParent mapType = overallNearest.Region switch
+            {
+                "Blueberry" => TeraRaidMapParent.Blueberry,
+                "Kitakami" => TeraRaidMapParent.Kitakami,
+                "Paldea" => TeraRaidMapParent.Paldea,
+                _ => throw new InvalidOperationException("Invalid region")
+            };
+
+            var activeRaids = await GetActiveRaidLocations(mapType, token);
+
+            // Find the nearest active raid, if any
+            var nearestActiveRaid = activeRaids
+                .Select(raid => new { Raid = raid, Distance = CalculateDistance(playerLocation, (raid.Coordinates[0], raid.Coordinates[1], raid.Coordinates[2])) })
+                .OrderBy(raid => raid.Distance)
+                .FirstOrDefault();
+
+            if (nearestActiveRaid != null)
+            {
+                // Check if the player is already at the nearest active den
+                float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
+
+                // Define a threshold for how close the player needs to be to be considered "at" the den
+                const float threshold = 1.6f;
+
+                uint denSeed = nearestActiveRaid.Raid.Seed;
+                string hexDenSeed = denSeed.ToString("X8");
+                denHexSeed = hexDenSeed;
+                Log($"Seed: {hexDenSeed} Nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
+
+                if (distanceToNearestActiveDen > threshold)
+                {
+                    uint seedOfNearestDen = nearestActiveRaid.Raid.Seed;
+
+                    bool onOverworldTitle = await IsOnOverworldTitle(token);
+                    if (!onOverworldTitle)
+                    {
+                        // Player is not at the den, so teleport
+                        await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
+                        Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
+                    }
+                }
+                else
+                {
+                    // Player is already at the den
+                    //  Log($"Already at the nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
+                }
+            }
+            else
+            {
+                Log($"No active dens found in {overallNearest.Region}");
+            }
+            bool IsKitakami = overallNearest.Region == "Kitakami";
+            bool IsBlueberry = overallNearest.Region == "Blueberry";
+        }
+
+        private bool IsRaidActive((uint Area, uint LotteryGroup, uint Den) raid)
+        {
+            return true;
+        }
+
+        private async Task<List<(string DenIdentifier, float[] Coordinates, int Index, uint Seed)>> GetActiveRaidLocations(TeraRaidMapParent mapType, CancellationToken token)
+        {
+            var raidInfo = await ExtractRaidInfo(mapType, token);
+            Dictionary<string, float[]> denLocations = mapType switch
+            {
+                TeraRaidMapParent.Paldea => LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_base.json"),
+                TeraRaidMapParent.Kitakami => LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_kitakami.json"),
+                TeraRaidMapParent.Blueberry => LoadDenLocations("SysBot.Pokemon.SV.BotRaid.DenLocations.den_locations_blueberry.json"),
+                _ => throw new InvalidOperationException("Invalid region")
+            };
+
+            var activeRaids = new List<(string DenIdentifier, float[] Coordinates, int Index, uint Seed)>();
+            int index = 0;
+            foreach (var (Area, LotteryGroup, Den, Seed) in raidInfo)
+            {
+                string raidIdentifier = $"{Area}-{LotteryGroup}-{Den}";
+                if (denLocations.TryGetValue(raidIdentifier, out var coordinates) && IsRaidActive((Area, LotteryGroup, Den)))
+                {
+                    activeRaids.Add((raidIdentifier, coordinates, index, Seed));
+                }
+                index++;
+            }
+
+            return activeRaids;
         }
 
         private async Task WriteProgressLive(GameProgress progress)
@@ -2704,7 +2928,10 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             Log("Getting Raid data...");
             await InitializeRaidBlockPointers(token);
-
+            if (firstRun)
+            {
+                await LogPlayerLocation(token); // Get seed from current den for processing
+            }
             string game = await DetermineGame(token);
             container = new(game);
             container.SetGame(game);
@@ -2715,29 +2942,36 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allEncounters = new List<ITeraRaid>();
             var allRewards = new List<List<(int, int, int)>>();
 
-            // Read and process Paldea Raids
-            var dataP = await ReadPaldeaRaids(token);
-            Log("Reading Paldea Raids...");
-            var (paldeaRaids, paldeaEncounters, paldeaRewards) = await ProcessRaids(dataP, TeraRaidMapParent.Paldea, token);
-            allRaids.AddRange(paldeaRaids);
-            allEncounters.AddRange(paldeaEncounters);
-            allRewards.AddRange(paldeaRewards);
-
-            // Read and process Kitakami Raids
-            var dataK = await ReadKitakamiRaids(token);
-            Log("Reading Kitakami Raids...");
-            var (kitakamiRaids, kitakamiEncounters, kitakamiRewards) = await ProcessRaids(dataK, TeraRaidMapParent.Kitakami, token);
-            allRaids.AddRange(kitakamiRaids);
-            allEncounters.AddRange(kitakamiEncounters);
-            allRewards.AddRange(kitakamiRewards);
-
-            // Read and process Blueberry Raids
-            var dataB = await ReadBlueberryRaids(token);
-            Log("Reading Blueberry Raids...");
-            var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
-            allRaids.AddRange(blueberryRaids);
-            allEncounters.AddRange(blueberryEncounters);
-            allRewards.AddRange(blueberryRewards);
+            if (IsBlueberry)
+            {
+                // Process only Blueberry raids
+                var dataB = await ReadBlueberryRaids(token);
+                Log("Reading Blueberry Raids...");
+                var (blueberryRaids, blueberryEncounters, blueberryRewards) = await ProcessRaids(dataB, TeraRaidMapParent.Blueberry, token);
+                allRaids.AddRange(blueberryRaids);
+                allEncounters.AddRange(blueberryEncounters);
+                allRewards.AddRange(blueberryRewards);
+            }
+            else if (IsKitakami)
+            {
+                // Process only Kitakami raids
+                var dataK = await ReadKitakamiRaids(token);
+                Log("Reading Kitakami Raids...");
+                var (kitakamiRaids, kitakamiEncounters, kitakamiRewards) = await ProcessRaids(dataK, TeraRaidMapParent.Kitakami, token);
+                allRaids.AddRange(kitakamiRaids);
+                allEncounters.AddRange(kitakamiEncounters);
+                allRewards.AddRange(kitakamiRewards);
+            }
+            else
+            {
+                // Default to processing Paldea raids
+                var dataP = await ReadPaldeaRaids(token);
+                Log("Reading Paldea Raids...");
+                var (paldeaRaids, paldeaEncounters, paldeaRewards) = await ProcessRaids(dataP, TeraRaidMapParent.Paldea, token);
+                allRaids.AddRange(paldeaRaids);
+                allEncounters.AddRange(paldeaEncounters);
+                allRewards.AddRange(paldeaRewards);
+            }
 
             // Set combined data to container and process all raids
             container.SetRaids(allRaids);
@@ -2766,6 +3000,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Invalid delivery group ID for {delivery} raid(s) in {mapType}. Try deleting the \"cache\" folder.");
                 if (mapType == TeraRaidMapParent.Paldea)
                 {
+                    InvalidDeliveryGroupCount = delivery;
                     totalRaidsProcessed += delivery; // Add the number of invalid delivery group IDs to total raids processed
                 }
             }
@@ -2779,7 +3014,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 BlueberryDensCount += totalRaidsProcessed;
             }
 
-            Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
+            // Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
 
             // Additional logic for Paldea raids
             if (mapType == TeraRaidMapParent.Paldea)
@@ -2841,12 +3076,8 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task InitializeRaidBlockPointers(CancellationToken token)
         {
-            if (RaidBlockPointerP == 0)
-                RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
-
-            if (RaidBlockPointerK == 0)
-                RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
-
+            RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
+            RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
             RaidBlockPointerB = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerB, token).ConfigureAwait(false);
         }
 
@@ -2916,6 +3147,18 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allEncounters = container.Encounters;
             var allRewards = container.Rewards;
 
+            string originalSeedString = ""; // Store the original seed as a string
+            uint denHexSeedUInt;
+            denHexSeedUInt = uint.Parse(denHexSeed, NumberStyles.AllowHexSpecifier);
+            await FindSeedIndexInRaids(denHexSeedUInt, token);
+
+            if (firstRun)
+            {
+                // Store the original seed from ActiveRaids[0]
+                originalSeedString = Settings.ActiveRaids[0].Seed; // Store it as a string
+                Settings.ActiveRaids[0].Seed = denHexSeed;
+            }
+
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
 
             for (int i = 0; i < allRaids.Count; i++)
@@ -2948,8 +3191,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                         var areaText = $"{Areas.GetArea((int)(allRaids[i].Area - 1), allRaids[i].MapParent)} - Den {allRaids[i].Den}";
                         Log($"Seed {seed:X8} found for {(Species)allEncounters[i].Species} in {areaText}");
-                        Settings.ActiveRaids[a].Seed = $"{seed:X8}";
-                        firstRun = false;
                         var stars = allRaids[i].IsEvent ? allEncounters[i].Stars : allRaids[i].GetStarCount(allRaids[i].Difficulty, StoryProgress, allRaids[i].IsBlack);
                         var encounter = allRaids[i].GetTeraEncounter(container, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
                         var pkinfo = RaidExtensions<PK9>.GetRaidPrintName(pk);
@@ -2984,6 +3225,57 @@ namespace SysBot.Pokemon.SV.BotRaid
                     }
                 }
             }
+            if (firstRun)
+            {
+                if (uint.TryParse(originalSeedString, NumberStyles.AllowHexSpecifier, null, out uint originalSeed))
+                {
+                    Settings.ActiveRaids[0].Seed = originalSeed.ToString("X8"); // Put users original seed back 
+                }
+            }
+        }
+
+        private async Task FindSeedIndexInRaids(uint denHexSeedUInt, CancellationToken token)
+        {
+            var upperBound = KitakamiDensCount == 25 ? 94 : 95;
+            var startIndex = KitakamiDensCount == 25 ? 94 : 95;
+
+            // Search in Paldea region
+            var dataP = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
+            for (int i = 0; i < 69; i++)
+            {
+                var seed = BitConverter.ToUInt32(dataP.AsSpan(0x20 + i * 0x20, 4));
+                if (seed == denHexSeedUInt)
+                {
+                    SeedIndexToReplace = i;
+                    return;
+                }
+            }
+
+            // Search in Kitakami region
+            var dataK = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK + 0x10, 0xC80, token).ConfigureAwait(false);
+            for (int i = 0; i < upperBound; i++)
+            {
+                var seed = BitConverter.ToUInt32(dataK.AsSpan(i * 0x20, 4));
+                if (seed == denHexSeedUInt)
+                {
+                    SeedIndexToReplace = i + 69;
+                    return;
+                }
+            }
+
+            // Search in Blueberry region
+            var dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0xA00, token).ConfigureAwait(false);
+            for (int i = startIndex; i < 118; i++)
+            {
+                var seed = BitConverter.ToUInt32(dataB.AsSpan((i - startIndex) * 0x20, 4));
+                if (seed == denHexSeedUInt)
+                {
+                    SeedIndexToReplace = i - 1;
+                    return;
+                }
+            }
+
+            Log($"Seed {denHexSeedUInt:X8} not found in any region.");
         }
 
         public static (PK9, Embed) RaidInfoCommand(string seedValue, int contentType, TeraRaidMapParent map, int storyProgressLevel, int raidDeliveryGroupID, List<string> rewardsToShow, bool isEvent = false)

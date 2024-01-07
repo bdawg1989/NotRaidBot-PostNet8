@@ -86,7 +86,27 @@ namespace SysBot.Base
         }
 
         /// <summary> Only call this if you are sending small commands. </summary>
-        public async Task<int> SendAsync(byte[] buffer, CancellationToken token) => await Task.Run(() => Connection.Send(buffer), token).ConfigureAwait(false);
+        public async Task<int> SendAsync(byte[] buffer, CancellationToken token)
+        {
+            int maxRetries = 3;
+            int attempts = 0;
+            while (attempts < maxRetries)
+            {
+                try
+                {
+                    return await Task.Run(() => Connection.Send(buffer), token).ConfigureAwait(false);
+                }
+                catch (SocketException ex)
+                {
+                    attempts++;
+                    Log($"SendAsync failed: {ex.Message}. Attempt {attempts} of {maxRetries}");
+                    if (attempts >= maxRetries) throw;
+
+                    await Task.Delay(2000, token); // Wait before retrying
+                }
+            }
+            return 0;
+        }
 
         private async Task<byte[]> ReadBytesFromCmdAsync(byte[] cmd, int length, CancellationToken token)
         {

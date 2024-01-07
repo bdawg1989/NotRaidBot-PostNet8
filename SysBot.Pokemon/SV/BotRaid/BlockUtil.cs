@@ -120,6 +120,38 @@ namespace SysBot.Pokemon.SV.BotRaid
                 IsEncrypted = true,
                 Size = 1,
             };
+
+            public static readonly DataBlock KCoordinates = new()
+            {
+                Name = "KCoordinates",
+                Key = 0x708D1511,
+                Type = SCTypeCode.Array,
+                SubType = SCTypeCode.Single,
+                Pointer = PokeDataOffsetsSV.SaveBlockKeyPointer,
+                IsEncrypted = true,
+                Size = 0x0000000C,
+            };
+
+            public static readonly DataBlock KPlayerRotation = new()
+            {
+                Name = "KPlayerRotation",
+                Key = 0x31EF132C,
+                Type = SCTypeCode.Array,
+                SubType = SCTypeCode.Single,
+                Pointer = PokeDataOffsetsSV.SaveBlockKeyPointer,
+                IsEncrypted = true,
+                Size = 0x00000010,
+            };
+
+            public static DataBlock KPlayerCurrentFieldID = new()
+            {
+                Name = "KPlayerCurrentFieldID",
+                Key = 0xF17EB014, // PlayerSave_CurrentFieldId (0 = Paldea, 1 = Kitakami, 2 = Blueberry)
+                Type = SCTypeCode.SByte,
+                Pointer = PokeDataOffsetsSV.SaveBlockKeyPointer,
+                IsEncrypted = true,
+                Size = 1,
+            };
         }
     }
 }
