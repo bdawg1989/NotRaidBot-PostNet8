@@ -2499,7 +2499,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log("Restarting the game!");
 
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
-            await InitializeRaidBlockPointers(token);
 
             if (Settings.ActiveRaids.Count > 1)
             {
@@ -2559,7 +2558,11 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Attempting to override seed for {Settings.ActiveRaids[RotationCount].Species}.");
                 await OverrideSeedIndex(SeedIndexToReplace, token).ConfigureAwait(false);
                 Log("Seed override completed.");
+
+                await Task.Delay(1_000, token).ConfigureAwait(false);
+                await InitializeRaidBlockPointers(token);
                 await LogPlayerLocation(token); // Teleports user to closest Active Den
+
                 if (Settings.RaidSettings.MysteryRaids && !firstRun)
                 {
                     // Count the number of existing Mystery Shiny Raids
@@ -2797,9 +2800,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (distanceToNearestActiveDen > threshold)
                 {
                     uint seedOfNearestDen = nearestActiveRaid.Raid.Seed;
-                    // Player is not at the den, so teleport
-                    await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
-                    Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
+
+                    bool onOverworldTitle = await IsOnOverworldTitle(token);
+                    if (!onOverworldTitle)
+                    {
+                        // Player is not at the den, so teleport
+                        await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
+                        Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
+                    }
                 }
                 else
                 {
@@ -3140,7 +3148,9 @@ namespace SysBot.Pokemon.SV.BotRaid
             var allRewards = container.Rewards;
 
             string originalSeedString = ""; // Store the original seed as a string
-
+            uint denHexSeedUInt;
+            denHexSeedUInt = uint.Parse(denHexSeed, NumberStyles.AllowHexSpecifier);
+            await FindSeedIndexInRaids(denHexSeedUInt, token);
             if (firstRun)
             {
                 // Store the original seed from ActiveRaids[0]
@@ -3149,41 +3159,9 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
-            uint denHexSeedUInt;
-
-            try
-            {
-                denHexSeedUInt = uint.Parse(denHexSeed, NumberStyles.AllowHexSpecifier);
-            }
-            catch (FormatException)
-            {
-                Log($"Invalid denHexSeed format: {denHexSeed}");
-                return; // Or handle the error as appropriate
-            }
 
             for (int i = 0; i < allRaids.Count; i++)
             {
-                if (allRaids[i].Seed == denHexSeedUInt)
-                {
-                    // Adjust SeedIndexToReplace based on the region
-                    if (IsKitakami)
-                    {
-                        SeedIndexToReplace = i + 69; // Adjust for Kitakami region
-                    }
-                    else if (IsBlueberry)
-                    {
-                        int blueberryStartIndex = KitakamiDensCount == 25 ? 94 : 95;
-                        SeedIndexToReplace = i + blueberryStartIndex + 1; // Adjust for Blueberry region
-                    }
-                    else
-                    {
-                        SeedIndexToReplace = i + InvalidDeliveryGroupCount; // No adjustment for Paldea or other regions
-                    }
-
-                    Log($"Den ID: {SeedIndexToReplace} stored.");
-                    return;
-                }
-
                 var (pk, seed) = IsSeedReturned(allEncounters[i], allRaids[i]);
 
                 for (int a = 0; a < Settings.ActiveRaids.Count; a++)
@@ -3200,6 +3178,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                         a--;  // Decrement the index so that it does not skip the next element.
                         continue;  // Skip to the next iteration.
                     }
+
                     if (seed == set)
                     {
                         var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
@@ -3252,6 +3231,54 @@ namespace SysBot.Pokemon.SV.BotRaid
                 }
             }
         }
+
+        private async Task FindSeedIndexInRaids(uint denHexSeedUInt, CancellationToken token)
+        {
+            var upperBound = KitakamiDensCount == 25 ? 94 : 95;
+            var startIndex = KitakamiDensCount == 25 ? 94 : 95;
+
+            // Search in Paldea region
+            var dataP = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerP, 2304, token).ConfigureAwait(false);
+            for (int i = 0; i < 69; i++)
+            {
+                var seed = BitConverter.ToUInt32(dataP.AsSpan(0x20 + i * 0x20, 4));
+                if (seed == denHexSeedUInt)
+                {
+                    SeedIndexToReplace = i;
+                    Log($"Index Found: {i}");
+                    return;
+                }
+            }
+
+            // Search in Kitakami region
+            var dataK = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerK + 0x10, 0xC80, token).ConfigureAwait(false);
+            for (int i = 0; i < upperBound; i++)
+            {
+                var seed = BitConverter.ToUInt32(dataK.AsSpan(i * 0x20, 4));
+                if (seed == denHexSeedUInt)
+                {
+                    SeedIndexToReplace = i + 69;
+                    Log($"Index Found: {SeedIndexToReplace}");
+                    return;
+                }
+            }
+
+            // Search in Blueberry region
+            var dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0xA00, token).ConfigureAwait(false);
+            for (int i = 0; i < 118; i++)
+            {
+                var seed = BitConverter.ToUInt32(dataB.AsSpan((i - startIndex) * 0x20, 4));
+                if (seed == denHexSeedUInt)
+                {
+                    SeedIndexToReplace = i + startIndex - 1;
+                    Log($"Index Found: {SeedIndexToReplace}");
+                    return;
+                }
+            }
+
+            Log($"Seed {denHexSeedUInt:X8} not found in any region.");
+        }
+
         public static (PK9, Embed) RaidInfoCommand(string seedValue, int contentType, TeraRaidMapParent map, int storyProgressLevel, int raidDeliveryGroupID, List<string> rewardsToShow, bool isEvent = false)
         {
             byte[] enabled = StringToByteArray("00000001");
