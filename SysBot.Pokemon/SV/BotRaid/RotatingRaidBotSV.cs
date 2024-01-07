@@ -3246,7 +3246,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == denHexSeedUInt)
                 {
                     SeedIndexToReplace = i;
-                    Log($"Index Found: {i}");
                     return;
                 }
             }
@@ -3259,7 +3258,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (seed == denHexSeedUInt)
                 {
                     SeedIndexToReplace = i + 69;
-                    Log($"Index Found: {SeedIndexToReplace}");
                     return;
                 }
             }
@@ -3271,8 +3269,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 var seed = BitConverter.ToUInt32(dataB.AsSpan((i - startIndex) * 0x20, 4));
                 if (seed == denHexSeedUInt)
                 {
-                    SeedIndexToReplace = i;
-                    Log($"Index Found: {SeedIndexToReplace}");
+                    SeedIndexToReplace = i - 1;
                     return;
                 }
             }
