@@ -110,11 +110,43 @@ namespace SysBot.Base
 
         private async Task<byte[]> ReadBytesFromCmdAsync(byte[] cmd, int length, CancellationToken token)
         {
-            await SendAsync(cmd, token).ConfigureAwait(false);
+            int maxRetries = 3; // Max number of retries
+            int delayBetweenRetries = 2000; // Delay in milliseconds between retries
+            int attempts = 0;
 
-            var buffer = new byte[(length * 2) + 1];
-            var _ = Read(buffer);
-            return Decoder.ConvertHexByteStringToBytes(buffer);
+            while (attempts < maxRetries)
+            {
+                try
+                {
+                    await SendAsync(cmd, token).ConfigureAwait(false);
+
+                    var buffer = new byte[(length * 2) + 1];
+                    int bytesRead = await Task.Run(() => Read(buffer), token).ConfigureAwait(false);
+
+                    // Check if the expected number of bytes were read
+                    if (bytesRead < buffer.Length)
+                    {
+                        throw new InvalidOperationException("Incomplete data read from the socket.");
+                    }
+
+                    return Decoder.ConvertHexByteStringToBytes(buffer);
+                }
+                catch (Exception ex)
+                {
+                    attempts++;
+                    Log($"ReadBytesFromCmdAsync failed on attempt {attempts}: {ex.Message}");
+
+                    if (attempts >= maxRetries)
+                    {
+                        Log("Maximum retry attempts reached, throwing exception.");
+                        throw; // Rethrow the exception if all retries fail
+                    }
+
+                    await Task.Delay(delayBetweenRetries, token); // Wait for a while before retrying
+                }
+            }
+
+            throw new InvalidOperationException("Failed to read bytes from command after several attempts.");
         }
 
         public async Task<byte[]> ReadBytesAsync(uint offset, int length, CancellationToken token) => await Read(offset, length, Heap, token).ConfigureAwait(false);
