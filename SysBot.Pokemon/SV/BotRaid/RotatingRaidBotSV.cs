@@ -2167,8 +2167,8 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Raid Code is: {code}");
             PK9 pk = new()
             {
-                Species = (ushort)Settings.ActiveRaids[RotationCount].Species,
-                Form = (byte)Settings.ActiveRaids[RotationCount].SpeciesForm
+                Species = (ushort)RaidEmbedInfo.RaidSpecies,
+                Form = RaidEmbedInfo.RaidSpeciesForm
             };
             if (pk.Form != 0)
                 form = $"-{pk.Form}";
@@ -2967,6 +2967,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                         var titlePrefix = allRaids[i].IsShiny ? "Shiny" : "";
                         RaidEmbedInfo.RaidSpecies = (Species)allEncounters[i].Species;
+                        RaidEmbedInfo.RaidSpeciesForm = allEncounters[i].Form;
                         RaidEmbedInfo.RaidEmbedTitle = $"{stars} ★ {titlePrefix} {(Species)allEncounters[i].Species}{pkinfo}";
                         RaidEmbedInfo.RaidSpeciesGender = $"{(pk.Gender == 0 ? "Male" : pk.Gender == 1 ? "Female" : "Genderless")}";
                         RaidEmbedInfo.RaidSpeciesNature = GameInfo.Strings.Natures[pk.Nature];
@@ -3180,6 +3181,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         {
             public static string RaidEmbedTitle = string.Empty;
             public static Species RaidSpecies = Species.None;
+            public static byte RaidSpeciesForm = 0;
             public static string RaidSpeciesGender = string.Empty;
             public static int RaidLevel;
             public static string RaidSpeciesIVs = string.Empty;
