@@ -3151,6 +3151,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             uint denHexSeedUInt;
             denHexSeedUInt = uint.Parse(denHexSeed, NumberStyles.AllowHexSpecifier);
             await FindSeedIndexInRaids(denHexSeedUInt, token);
+
             if (firstRun)
             {
                 // Store the original seed from ActiveRaids[0]
@@ -3265,12 +3266,12 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             // Search in Blueberry region
             var dataB = await SwitchConnection.ReadBytesAbsoluteAsync(RaidBlockPointerB + 0x10, 0xA00, token).ConfigureAwait(false);
-            for (int i = 0; i < 118; i++)
+            for (int i = startIndex; i < 118; i++)
             {
                 var seed = BitConverter.ToUInt32(dataB.AsSpan((i - startIndex) * 0x20, 4));
                 if (seed == denHexSeedUInt)
                 {
-                    SeedIndexToReplace = i + startIndex - 1;
+                    SeedIndexToReplace = i - 1;
                     Log($"Index Found: {SeedIndexToReplace}");
                     return;
                 }
