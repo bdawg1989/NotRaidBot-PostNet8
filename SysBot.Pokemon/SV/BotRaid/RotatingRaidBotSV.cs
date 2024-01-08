@@ -2130,8 +2130,8 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Log($"Raid Code is: {code}");
             PK9 pk = new()
             {
-                Species = (ushort)RaidEmbedInfo.RaidSpecies,
-                Form = RaidEmbedInfo.RaidSpeciesForm
+                Species = (ushort)Settings.ActiveRaids[RotationCount].Species,
+                Form = (byte)Settings.ActiveRaids[RotationCount].SpeciesForm
             };
             if (pk.Form != 0)
                 form = $"-{pk.Form}";
