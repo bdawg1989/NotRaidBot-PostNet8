@@ -2577,16 +2577,25 @@ namespace SysBot.Pokemon.SV.BotRaid
             for (int i = 0; i < 8; i++)
                 await Click(A, 1_000, token).ConfigureAwait(false);
 
-            var timer = 60_000;
-            while (!await IsOnOverworldTitle(token).ConfigureAwait(false))
+            // Loop to press 'A' and check if the overworld is loaded
+            int overworldCheckInterval = 1000; // Milliseconds
+            int maxOverworldWaitTime = 60_000; // Maximum time to wait for the overworld (60 seconds)
+            int elapsedTime = 0;
+
+            Log("Waiting for overworld to load...");
+            while (!await IsOnOverworldTitle(token).ConfigureAwait(false) && elapsedTime < maxOverworldWaitTime)
             {
-                await Task.Delay(1_000, token).ConfigureAwait(false);
-                timer -= 1_000;
-                if (timer <= 0 && !timing.RestartGameSettings.AvoidSystemUpdate)
+                // Press 'A' to try moving past any dialogs or loading screens
+                await Click(A, overworldCheckInterval, token).ConfigureAwait(false);
+                elapsedTime += overworldCheckInterval;
+
+                if (elapsedTime >= maxOverworldWaitTime)
                 {
-                    Log("Still not in the game, initiating rescue protocol!");
+                    Log("Max wait time exceeded. Still not in the overworld, initiating rescue protocol!");
                     while (!await IsOnOverworldTitle(token).ConfigureAwait(false))
-                        await Click(A, 6_000, token).ConfigureAwait(false);
+                    {
+                        await Click(A, 6_000, token).ConfigureAwait(false); // Press 'A' every 6 seconds until overworld is detected
+                    }
                     break;
                 }
             }
