@@ -2779,13 +2779,13 @@ namespace SysBot.Pokemon.SV.BotRaid
                 denHexSeed = hexDenSeed;
                 Log($"Seed: {hexDenSeed} Nearest active den: {nearestActiveRaid.Raid.DenIdentifier}");
 
-                if (distanceToNearestActiveDen > threshold)
+                bool onOverworld = await IsOnOverworld(OverworldOffset, token).ConfigureAwait(false);
+                if (!onOverworld)
                 {
-                    uint seedOfNearestDen = nearestActiveRaid.Raid.Seed;
-
-                    bool onOverworldTitle = await IsOnOverworldTitle(token);
-                    if (!onOverworldTitle)
+                    if (distanceToNearestActiveDen > threshold)
                     {
+                        uint seedOfNearestDen = nearestActiveRaid.Raid.Seed;
+
                         // Player is not at the den, so teleport
                         await TeleportToDen(nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2], token);
                         Log($"Teleported to nearest active den: {nearestActiveRaid.Raid.DenIdentifier} Seed: {nearestActiveRaid.Raid.Seed:X8} in {overallNearest.Region}.");
