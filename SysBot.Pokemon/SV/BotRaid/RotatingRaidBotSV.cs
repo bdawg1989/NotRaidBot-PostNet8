@@ -2648,7 +2648,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
-            const float offset = 1.4f;
+            const float offset = 1.6f;
             x += offset;
 
             // Convert coordinates to byte array
@@ -2772,7 +2772,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
 
                 // Define a threshold for how close the player needs to be to be considered "at" the den
-                const float threshold = 1.6f;
+                const float threshold = 1.8f;
 
                 uint denSeed = nearestActiveRaid.Raid.Seed;
                 string hexDenSeed = denSeed.ToString("X8");
