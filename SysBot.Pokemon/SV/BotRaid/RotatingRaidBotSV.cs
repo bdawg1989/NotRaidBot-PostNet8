@@ -2497,6 +2497,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log("Restarting the game!");
 
             await Task.Delay(19_000 + timing.RestartGameSettings.ExtraTimeLoadGame, token).ConfigureAwait(false); // Wait for the game to load before writing to memory
+            await InitializeRaidBlockPointers(token);
 
             if (Settings.ActiveRaids.Count > 1)
             {
@@ -2557,8 +2558,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 await OverrideSeedIndex(SeedIndexToReplace, token).ConfigureAwait(false);
                 Log("Seed override completed.");
 
-                await Task.Delay(1_000, token).ConfigureAwait(false);
-                await InitializeRaidBlockPointers(token);
+                await Task.Delay(2_000, token).ConfigureAwait(false);
                 await LogPlayerLocation(token); // Teleports user to closest Active Den
 
                 if (Settings.RaidSettings.MysteryRaids && !firstRun)
