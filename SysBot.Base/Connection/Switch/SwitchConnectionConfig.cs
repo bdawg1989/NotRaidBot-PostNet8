@@ -49,9 +49,9 @@ namespace SysBot.Base
         /// <inheritdoc/>
         public ISwitchConnectionAsync CreateAsynchronous() => Protocol switch
         {
-            WiFi => new SwitchSocketAsync(this),
+            WiFi => SwitchSocketAsync.CreateInstance(this),
             USB => new SwitchUSBAsync(Port),
-            _ => throw new ArgumentOutOfRangeException(nameof(SwitchProtocol)),
+            _ => throw new ArgumentOutOfRangeException(nameof(SwitchProtocol), Protocol, null),
         };
 
         public ISwitchConnectionSync CreateSync() => Protocol switch

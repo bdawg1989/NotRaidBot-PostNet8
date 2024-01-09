@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -18,171 +19,82 @@ namespace SysBot.Base
     /// </remarks>
     public sealed class SwitchSocketAsync : SwitchSocket, ISwitchConnectionAsync
     {
-        public SwitchSocketAsync(IWirelessConnectionConfig cfg) : base(cfg) { }
+        private SwitchSocketAsync(IWirelessConnectionConfig cfg) : base(cfg) { }
+
+        public static SwitchSocketAsync CreateInstance(IWirelessConnectionConfig cfg)
+        {
+            return new SwitchSocketAsync(cfg);
+        }
 
         public override void Connect()
         {
             if (Connected)
             {
-                Log("Already connected, skipping reconnection.");
+                Log("Already connected prior, skipping initial connection.");
                 return;
             }
 
             Log("Connecting to device...");
-            try
+            IAsyncResult result = Connection.BeginConnect(Info.IP, Info.Port, null, null);
+            bool success = result.AsyncWaitHandle.WaitOne(5000, true);
+            if (!success || !Connection.Connected)
             {
-                Connection.Connect(Info.IP, Info.Port);
-                Log("Connected!");
-                Label = Name;
+                InitializeSocket();
+                throw new Exception("Failed to connect to device.");
             }
-            catch (Exception ex)
-            {
-                Log($"Error during connection: {ex.Message}");
-                // You might want to rethrow the exception or handle it based on your application's needs
-            }
+            Connection.EndConnect(result);
+            Log("Connected!");
+            Label = Name;
         }
 
         public override void Reset()
         {
-            var ip = Info.IP;
             if (Connected)
                 Disconnect();
-
-            // Socket will update "Connected" condition itself based on the success of the most recent read/write call.
-            // We want to ensure we initialize the Socket if we're resetting after a crash.
-            InitializeSocket();
-            Log("Connecting to device...");
-            var address = Dns.GetHostAddresses(ip);
-            foreach (IPAddress adr in address)
-            {
-                IPEndPoint ep = new(adr, Info.Port);
-                try
-                {
-                    Connection.Connect(ep);
-                }
-                catch
-                {
-                    return;
-                }
-                Log("Connected!");
-            }
-        }
-
-        public void Reconnect()
-        {
-            Disconnect(); // Disconnect first
-            Thread.Sleep(1000); // Optional: wait a short period before reconnecting
-            Connect(); // Then reconnect
+            else
+                InitializeSocket();
+            Connect();
         }
 
         public override void Disconnect()
         {
-            if (!Connected)
-            {
-                Log("Already disconnected.");
-                return;
-            }
-
             Log("Disconnecting from device...");
-            try
+            IAsyncResult result = Connection.BeginDisconnect(false, null, null);
+            bool success = result.AsyncWaitHandle.WaitOne(5000, true);
+            if (!success || Connection.Connected)
             {
-                Connection.Shutdown(SocketShutdown.Both);
-                Connection.Close(); // Ensures the socket is fully closed
+                InitializeSocket();
+                throw new Exception("Failed to disconnect from device.");
             }
-            catch (Exception ex)
-            {
-                Log($"Error during disconnection: {ex.Message}");
-            }
-            finally
-            {
-                InitializeSocket(); // Reinitialize the socket for future connections
-                Log("Disconnected and reset socket.");
-            }
-        }
-
-        private int Read(byte[] buffer)
-        {
-            int br = Connection.Receive(buffer, 0, 1, SocketFlags.None);
-            while (buffer[br - 1] != (byte)'\n')
-                br += Connection.Receive(buffer, br, 1, SocketFlags.None);
-            return br;
+            Connection.EndDisconnect(result);
+            Log("Disconnected! Resetting Socket.");
+            InitializeSocket();
         }
 
         /// <summary> Only call this if you are sending small commands. </summary>
         public async Task<int> SendAsync(byte[] buffer, CancellationToken token)
         {
-            int maxRetries = 3;
-            int attempts = 0;
-            while (attempts < maxRetries)
-            {
-                try
-                {
-                    return await Task.Run(() => Connection.Send(buffer), token).ConfigureAwait(false);
-                }
-                catch (SocketException ex)
-                {
-                    Log($"SendAsync failed: {ex.Message}. Attempt {attempts + 1} of {maxRetries}");
-                    if (attempts >= maxRetries - 1) // Before the last retry, attempt to reconnect
-                    {
-                        Log("Attempting to reconnect before the final retry.");
-                        Reconnect();
-                    }
-
-                    attempts++;
-                    if (attempts >= maxRetries) throw;
-                    await Task.Delay(2000, token); // Wait before retrying
-                }
-            }
-            return 0;
+            return await Connection.SendAsync(buffer, token).AsTask();
         }
 
         private async Task<byte[]> ReadBytesFromCmdAsync(byte[] cmd, int length, CancellationToken token)
         {
-            int maxRetries = 3; // Maximum number of retries
-            int delayBetweenRetries = 2000; // Delay in milliseconds between retries
-            int attempts = 0;
-
-            while (attempts < maxRetries)
-            {
-                try
-                {
-                    await SendAsync(cmd, token).ConfigureAwait(false);
-
-                    var buffer = new byte[(length * 2) + 1];
-                    int bytesRead = await Task.Run(() => Read(buffer), token).ConfigureAwait(false);
-
-                    // Check if the expected number of bytes were read
-                    if (bytesRead < buffer.Length)
-                    {
-                        throw new InvalidOperationException("Incomplete data read from the socket.");
-                    }
-
-                    return Decoder.ConvertHexByteStringToBytes(buffer);
-                }
-                catch (Exception ex)
-                {
-                    Log($"ReadBytesFromCmdAsync failed on attempt {attempts + 1}: {ex.Message}");
-
-                    if (attempts >= maxRetries - 1) // Before the last retry, attempt to reconnect
-                    {
-                        Log("Attempting to reconnect before the final retry.");
-                        Reconnect();
-                    }
-
-                    attempts++;
-                    if (attempts >= maxRetries)
-                    {
-                        Log("Maximum retry attempts reached, throwing exception.");
-                        throw; // Rethrow the exception if all retries fail
-                    }
-
-                    await Task.Delay(delayBetweenRetries, token); // Wait for a while before retrying
-                }
-            }
-
-            throw new InvalidOperationException("Failed to read bytes from command after several attempts.");
+            await SendAsync(cmd, token).ConfigureAwait(false);
+            var size = (length * 2) + 1;
+            var buffer = ArrayPool<byte>.Shared.Rent(size);
+            var mem = buffer.AsMemory()[..size];
+            await Connection.ReceiveAsync(mem, token);
+            var result = DecodeResult(mem, length);
+            ArrayPool<byte>.Shared.Return(buffer, true);
+            return result;
         }
-
+        private static byte[] DecodeResult(ReadOnlyMemory<byte> buffer, int length)
+        {
+            var result = new byte[length];
+            var span = buffer.Span[..^1]; // Last byte is always a terminator
+            Decoder.LoadHexBytesTo(span, result, 2);
+            return result;
+        }
         public async Task<byte[]> ReadBytesAsync(uint offset, int length, CancellationToken token) => await Read(offset, length, Heap, token).ConfigureAwait(false);
         public async Task<byte[]> ReadBytesMainAsync(ulong offset, int length, CancellationToken token) => await Read(offset, length, Main, token).ConfigureAwait(false);
         public async Task<byte[]> ReadBytesAbsoluteAsync(ulong offset, int length, CancellationToken token) => await Read(offset, length, Absolute, token).ConfigureAwait(false);
@@ -290,7 +202,7 @@ namespace SysBot.Base
         {
             await SendAsync(command, token).ConfigureAwait(false);
             var buffer = new byte[length];
-            var _ = Read(buffer);
+            await Connection.ReceiveAsync(buffer, token);
             return buffer;
         }
 

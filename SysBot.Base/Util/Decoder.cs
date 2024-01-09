@@ -23,7 +23,14 @@ namespace SysBot.Base
             }
             return dest;
         }
-
+        public static void LoadHexBytesTo(ReadOnlySpan<byte> str, Span<byte> dest, int tupleSize)
+        {
+            // The input string is 2-char hex values optionally separated.
+            // The destination array should always be larger or equal than the bytes written. Let the runtime bounds check us.
+            // Iterate through the string without allocating.
+            for (int i = 0, j = 0; i < str.Length; i += tupleSize)
+                dest[j++] = DecodeTuple((char)str[i + 0], (char)str[i + 1]);
+        }
         private static byte DecodeTuple(char _0, char _1)
         {
             byte result;
