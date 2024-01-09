@@ -499,35 +499,32 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
         }
 
         public bool CheckProgressandLevel(int level, int storyProgressLevel)
-        { 
-            if (level == 7 && storyProgressLevel != 6)
-                return false;
-            else if (level == 6 && storyProgressLevel <= 5)
-                return false;
-            else if (level == 5 && storyProgressLevel <= 4)
-                return false;
-            else if (level == 4 && storyProgressLevel <= 3)
-                return false;
-            else if (level == 3 && storyProgressLevel <= 2)
-                return false;
-            else if (level == 2 && storyProgressLevel <= 1)
-                return false;
-            else if (level == 1 && storyProgressLevel > 2)
-                return false;
-            else
-                return true;
+        {
+            switch (storyProgressLevel)
+            {
+                case 6: // Unlocked 6 Stars
+                    return level >= 3 && level <= 6;
+                case 5: // Unlocked 5 Stars
+                    return level >= 3 && level <= 5;
+                case 4: // Unlocked 4 Stars
+                    return level >= 1 && level <= 4;
+                case 3: // Unlocked 3 Stars
+                    return level >= 1 && level <= 3;
+                default:
+                    return level == 1 || level == 2;
+            }
         }
 
-        public string GetRequiredProgress(int starCount)
+        public string GetRequiredProgress(int level)
         {
-            return starCount switch
+            return level switch
             {
-                6 or 7 => "6☆ Unlocked Progress",
-                5 => "5☆ Unlocked Progress or higher",
-                4 => "4☆ Unlocked Progress or higher",
-                3 => "3☆ Unlocked Progress or higher",
+                6 => "6☆ Unlocked Progress",
+                5 => "5☆ Unlocked Progress",
+                4 => "4☆ Unlocked Progress",
+                3 => "3☆ Unlocked Progress",
                 2 => "2☆ Unlocked Progress",
-                _ => "1☆ or 2☆ Unlocked Progress",                
+                _ => "1☆ Unlocked Progress",
             };
         }
 

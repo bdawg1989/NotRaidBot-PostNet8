@@ -24,14 +24,22 @@ namespace SysBot.Base
         {
             if (Connected)
             {
-                Log("Already connected prior, skipping initial connection.");
+                Log("Already connected, skipping reconnection.");
                 return;
             }
 
             Log("Connecting to device...");
-            Connection.Connect(Info.IP, Info.Port);
-            Log("Connected!");
-            Label = Name;
+            try
+            {
+                Connection.Connect(Info.IP, Info.Port);
+                Log("Connected!");
+                Label = Name;
+            }
+            catch (Exception ex)
+            {
+                Log($"Error during connection: {ex.Message}");
+                // You might want to rethrow the exception or handle it based on your application's needs
+            }
         }
 
         public override void Reset()
@@ -60,21 +68,36 @@ namespace SysBot.Base
             }
         }
 
+        public void Reconnect()
+        {
+            Disconnect(); // Disconnect first
+            Thread.Sleep(1000); // Optional: wait a short period before reconnecting
+            Connect(); // Then reconnect
+        }
+
         public override void Disconnect()
         {
-            Log("Disconnecting from device...");
-            Connection.Shutdown(SocketShutdown.Both);
-            try
+            if (!Connected)
             {
-                Connection.Disconnect(false);
-            }
-            catch
-            {
+                Log("Already disconnected.");
                 return;
             }
 
-            Log("Disconnected! Resetting Socket.");
-            InitializeSocket();
+            Log("Disconnecting from device...");
+            try
+            {
+                Connection.Shutdown(SocketShutdown.Both);
+                Connection.Close(); // Ensures the socket is fully closed
+            }
+            catch (Exception ex)
+            {
+                Log($"Error during disconnection: {ex.Message}");
+            }
+            finally
+            {
+                InitializeSocket(); // Reinitialize the socket for future connections
+                Log("Disconnected and reset socket.");
+            }
         }
 
         private int Read(byte[] buffer)
@@ -98,10 +121,15 @@ namespace SysBot.Base
                 }
                 catch (SocketException ex)
                 {
-                    attempts++;
-                    Log($"SendAsync failed: {ex.Message}. Attempt {attempts} of {maxRetries}");
-                    if (attempts >= maxRetries) throw;
+                    Log($"SendAsync failed: {ex.Message}. Attempt {attempts + 1} of {maxRetries}");
+                    if (attempts >= maxRetries - 1) // Before the last retry, attempt to reconnect
+                    {
+                        Log("Attempting to reconnect before the final retry.");
+                        Reconnect();
+                    }
 
+                    attempts++;
+                    if (attempts >= maxRetries) throw;
                     await Task.Delay(2000, token); // Wait before retrying
                 }
             }
@@ -110,7 +138,7 @@ namespace SysBot.Base
 
         private async Task<byte[]> ReadBytesFromCmdAsync(byte[] cmd, int length, CancellationToken token)
         {
-            int maxRetries = 3; // Max number of retries
+            int maxRetries = 3; // Maximum number of retries
             int delayBetweenRetries = 2000; // Delay in milliseconds between retries
             int attempts = 0;
 
@@ -133,9 +161,15 @@ namespace SysBot.Base
                 }
                 catch (Exception ex)
                 {
-                    attempts++;
-                    Log($"ReadBytesFromCmdAsync failed on attempt {attempts}: {ex.Message}");
+                    Log($"ReadBytesFromCmdAsync failed on attempt {attempts + 1}: {ex.Message}");
 
+                    if (attempts >= maxRetries - 1) // Before the last retry, attempt to reconnect
+                    {
+                        Log("Attempting to reconnect before the final retry.");
+                        Reconnect();
+                    }
+
+                    attempts++;
                     if (attempts >= maxRetries)
                     {
                         Log("Maximum retry attempts reached, throwing exception.");
