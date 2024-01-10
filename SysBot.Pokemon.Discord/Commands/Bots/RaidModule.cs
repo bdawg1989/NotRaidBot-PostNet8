@@ -240,13 +240,29 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 return;
             }
 
-            var c = bot.Bot.Connection;
-            c.Reset();
-            var bytes = await c.PixelPeek(token).ConfigureAwait(false) ?? Array.Empty<byte>();
-            MemoryStream ms = new(bytes);
+            byte[]? bytes = Array.Empty<byte>();
+            try
+            {
+                bytes = await bot.Bot.Connection.PixelPeek(token).ConfigureAwait(false) ?? Array.Empty<byte>();
+            }
+            catch (Exception ex)
+            {
+                await ReplyAsync($"Error while fetching pixels: {ex.Message}");
+                return;
+            }
+
+            if (bytes.Length == 0)
+            {
+                await ReplyAsync("No screenshot data received.");
+                return;
+            }
+
+            using MemoryStream ms = new MemoryStream(bytes);
             var img = "cap.jpg";
-            var embed = new EmbedBuilder { ImageUrl = $"attachment://{img}", Color = Color.Purple }.WithFooter(new EmbedFooterBuilder { Text = $"Captured image from bot at IP address {ip}." });
-            await Context.Channel.SendFileAsync(ms, img, "", false, embed: embed.Build());
+            var embed = new EmbedBuilder { ImageUrl = $"attachment://{img}", Color = Color.Purple }
+                .WithFooter(new EmbedFooterBuilder { Text = $"Captured image from bot at IP address {ip}." });
+
+            await Context.Channel.SendFileAsync(ms, img, embed: embed.Build());
         }
 
         private string GetBotIPFromJsonConfig()
