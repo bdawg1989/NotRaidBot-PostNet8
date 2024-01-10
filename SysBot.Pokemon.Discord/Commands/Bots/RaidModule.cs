@@ -44,6 +44,14 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 return;
             }
 
+            // Check Compatibility of Difficulty and Story Progress Level
+            var compatible = CheckProgressandLevel(level, storyProgressLevel);
+            if (!compatible)
+            {
+                await ReplyAsync($"Raid Difficulty requires a {GetRequiredProgress(level)}.").ConfigureAwait(false);
+                return;
+            }
+
             var settings = Hub.Config.RotatingRaidSV;  // Get RotatingRaidSV settings
 
             var crystalType = level switch
