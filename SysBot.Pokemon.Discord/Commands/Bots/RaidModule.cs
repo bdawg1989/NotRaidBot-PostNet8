@@ -510,8 +510,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                     return level >= 1 && level <= 4;
                 case 3: // Unlocked 3 Stars
                     return level >= 1 && level <= 3;
-                default:
-                    return level == 1 || level == 2;
+                default: return false; // No 1 or 2 Star Unlocked
             }
         }
 
@@ -523,8 +522,8 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 5 => "5☆ Unlocked Progress",
                 4 => "4☆ Unlocked Progress",
                 3 => "3☆ Unlocked Progress",
-                2 => "2☆ Unlocked Progress",
-                _ => "1☆ Unlocked Progress",
+                2 => "2☆ and 1☆ Unlocked Progress Not Allowed",
+                _ => "1☆ Unlocked Progress Not Allowed",
             };
         }
 
