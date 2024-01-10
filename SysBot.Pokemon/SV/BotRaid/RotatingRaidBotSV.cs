@@ -1819,6 +1819,9 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task<(bool, List<(ulong, RaidMyStatus)>)> ReadTrainers(CancellationToken token)
         {
+            if (!await IsConnectedToLobby(token))
+                return (false, new List<(ulong, RaidMyStatus)>());
+
             await EnqueueEmbed(null, "", false, false, false, false, token).ConfigureAwait(false);
 
             List<(ulong, RaidMyStatus)> lobbyTrainers = new();
@@ -1828,10 +1831,17 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             while (!full && DateTime.Now < endTime)
             {
+                if (!await IsConnectedToLobby(token))
+                    return (false, lobbyTrainers);
+
                 for (int i = 0; i < 3; i++)
                 {
                     var player = i + 2;
                     Log($"Waiting for Player {player} to load...");
+
+                    // Check connection to lobby here
+                    if (!await IsConnectedToLobby(token))
+                        return (false, lobbyTrainers);
 
                     var nidOfs = TeraNIDOffsets[i];
                     var data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
@@ -1839,6 +1849,11 @@ namespace SysBot.Pokemon.SV.BotRaid
                     while (nid == 0 && DateTime.Now < endTime)
                     {
                         await Task.Delay(0_500, token).ConfigureAwait(false);
+
+                        // Check connection to lobby again here after the delay
+                        if (!await IsConnectedToLobby(token))
+                            return (false, lobbyTrainers);
+
                         data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
                         nid = BitConverter.ToUInt64(data, 0);
                     }
@@ -1850,6 +1865,11 @@ namespace SysBot.Pokemon.SV.BotRaid
                     while (trainer.OT.Length == 0 && DateTime.Now < endTime)
                     {
                         await Task.Delay(0_500, token).ConfigureAwait(false);
+
+                        // Check connection to lobby again here after the delay
+                        if (!await IsConnectedToLobby(token))
+                            return (false, lobbyTrainers);
+
                         trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
                     }
 
