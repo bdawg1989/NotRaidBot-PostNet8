@@ -1221,8 +1221,9 @@ namespace SysBot.Pokemon.SV.BotRaid
             List<long> currentPointer = CalculateDirectPointer(currentRaidIndex);
             List<long> swapPointer = CalculateDirectPointer(swapWithIndex);
 
-            int areaIdOffset = 20; // Corrected Area ID offset
-            int denIdOffset = 25; // Corrected Den ID offset
+            int areaIdOffset = 20;
+            int denIdOffset = 25;
+            int LotteryGroupOffset = 24;
 
             // Read and store area and den ID values for index 0
             if (!originalIdsSet)
@@ -2648,7 +2649,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         public async Task TeleportToDen(float x, float y, float z, CancellationToken token)
         {
-            const float offset = 1.6f;
+            const float offset = 1.8f;
             x += offset;
 
             // Convert coordinates to byte array
@@ -2772,7 +2773,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 float distanceToNearestActiveDen = CalculateDistance(playerLocation, (nearestActiveRaid.Raid.Coordinates[0], nearestActiveRaid.Raid.Coordinates[1], nearestActiveRaid.Raid.Coordinates[2]));
 
                 // Define a threshold for how close the player needs to be to be considered "at" the den
-                const float threshold = 1.8f;
+                const float threshold = 2.0f;
 
                 uint denSeed = nearestActiveRaid.Raid.Seed;
                 string hexDenSeed = denSeed.ToString("X8");
