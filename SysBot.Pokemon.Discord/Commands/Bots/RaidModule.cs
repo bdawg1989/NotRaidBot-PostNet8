@@ -1,9 +1,11 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Newtonsoft.Json.Linq;
 using PKHeX.Core;
 using SysBot.Base;
 using SysBot.Pokemon.Discord.Helpers;
+using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -223,17 +225,18 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
         }
 
         [Command("repeek")]
-        [Summary("Take and send a screenshot from the specified Switch.")]
+        [Summary("Take and send a screenshot from the currently configured Switch.")]
         [RequireOwner]
-        public async Task RePeek(string address)
+        public async Task RePeek()
         {
+            string ip = GetBotIPFromJsonConfig(); // Fetch the IP from the config
             var source = new CancellationTokenSource();
             var token = source.Token;
 
-            var bot = SysCord<T>.Runner.GetBot(address);
+            var bot = SysCord<T>.Runner.GetBot(ip);
             if (bot == null)
             {
-                await ReplyAsync($"No bot found with the specified address ({address}).").ConfigureAwait(false);
+                await ReplyAsync($"No bot found with the specified IP address ({ip}).").ConfigureAwait(false);
                 return;
             }
 
@@ -242,8 +245,28 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             var bytes = await c.PixelPeek(token).ConfigureAwait(false) ?? Array.Empty<byte>();
             MemoryStream ms = new(bytes);
             var img = "cap.jpg";
-            var embed = new EmbedBuilder { ImageUrl = $"attachment://{img}", Color = Color.Purple }.WithFooter(new EmbedFooterBuilder { Text = $"Captured image from bot at address {address}." });
+            var embed = new EmbedBuilder { ImageUrl = $"attachment://{img}", Color = Color.Purple }.WithFooter(new EmbedFooterBuilder { Text = $"Captured image from bot at IP address {ip}." });
             await Context.Channel.SendFileAsync(ms, img, "", false, embed: embed.Build());
+        }
+
+        private string GetBotIPFromJsonConfig()
+        {
+            try
+            {
+                // Read the file and parse the JSON
+                var jsonData = File.ReadAllText(NotRaidBot.ConfigPath);
+                var config = JObject.Parse(jsonData);
+
+                // Access the IP address from the first bot in the Bots array
+                var ip = config["Bots"][0]["Connection"]["IP"].ToString();
+                return ip;
+            }
+            catch (Exception ex)
+            {
+                // Handle any errors that occur during reading or parsing the file
+                Console.WriteLine($"Error reading config file: {ex.Message}");
+                return "192.168.1.1"; // Default IP if error occurs
+            }
         }
 
         [Command("addRaidParams")]
