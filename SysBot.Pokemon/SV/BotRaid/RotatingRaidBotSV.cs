@@ -76,6 +76,8 @@ namespace SysBot.Pokemon.SV.BotRaid
         private bool originalIdsSet = false;
         private uint areaIdIndex0;
         private uint denIdIndex0;
+        private uint lotteryGroupIdIndex0;
+        private uint originalLotteryGroupId;
         private uint areaIdIndex1;
         private uint denIdIndex1;
         private string denHexSeed;
@@ -1223,30 +1225,36 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             int areaIdOffset = 20;
             int denIdOffset = 25;
-            int LotteryGroupOffset = 24;
+            int lotteryGroupOffset = 24;
 
-            // Read and store area and den ID values for index 0
+            // Read and store area, den, and lottery group ID values for index 0
             if (!originalIdsSet)
             {
                 areaIdIndex0 = await ReadValue("Area ID", 4, AdjustPointer(swapPointer, areaIdOffset), token);
                 denIdIndex0 = await ReadValue("Den ID", 4, AdjustPointer(swapPointer, denIdOffset), token);
+                lotteryGroupIdIndex0 = await ReadValue("Lottery Group", 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
                 originalIdsSet = true;
             }
 
             // Read values from current index
             uint currentAreaId = await ReadValue("Area ID", 4, AdjustPointer(currentPointer, areaIdOffset), token);
             uint currentDenId = await ReadValue("Den ID", 4, AdjustPointer(currentPointer, denIdOffset), token);
+            uint currentLotteryGroup = await ReadValue("Lottery Group", 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
 
             if (!hasSwapped && (raidType == "Might" || raidType == "Distribution"))
             {
                 // Perform swap
                 await LogAndUpdateValue("Area ID", areaIdIndex0, 4, AdjustPointer(currentPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", denIdIndex0, 4, AdjustPointer(currentPointer, denIdOffset), token);
+                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token); 
+
                 await LogAndUpdateValue("Area ID", currentAreaId, 4, AdjustPointer(swapPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", currentDenId, 4, AdjustPointer(swapPointer, denIdOffset), token);
+                await LogAndUpdateValue("Lottery Group", currentLotteryGroup, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token); 
 
                 originalAreaId = currentAreaId;
                 originalDenId = currentDenId;
+                originalLotteryGroupId = currentLotteryGroup; 
                 originalIdsSet = true;
                 hasSwapped = true;
             }
@@ -1258,10 +1266,12 @@ namespace SysBot.Pokemon.SV.BotRaid
                 // Swap current index back with original IDs
                 await LogAndUpdateValue("Area ID", originalAreaId, 4, AdjustPointer(currentPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", originalDenId, 4, AdjustPointer(currentPointer, denIdOffset), token);
+                await LogAndUpdateValue("Lottery Group", originalLotteryGroupId, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
 
                 // Restore index 0 to its original state
                 await LogAndUpdateValue("Area ID", areaIdIndex0, 4, AdjustPointer(swapPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", denIdIndex0, 4, AdjustPointer(swapPointer, denIdOffset), token);
+                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token); 
 
                 hasSwapped = false;
             }
