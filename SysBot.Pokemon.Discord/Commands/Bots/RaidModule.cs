@@ -260,7 +260,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             using MemoryStream ms = new MemoryStream(bytes);
             var img = "cap.jpg";
             var embed = new EmbedBuilder { ImageUrl = $"attachment://{img}", Color = Color.Purple }
-                .WithFooter(new EmbedFooterBuilder { Text = $"Captured image from bot at IP address {ip}." });
+                .WithFooter(new EmbedFooterBuilder { Text = $"Here's your screenshot." });
 
             await Context.Channel.SendFileAsync(ms, img, embed: embed.Build());
         }
