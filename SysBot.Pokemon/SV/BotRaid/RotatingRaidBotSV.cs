@@ -1834,44 +1834,44 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (!await IsConnectedToLobby(token))
                     return (false, lobbyTrainers);
 
-                for (int i = 0; i < 3; i++)
-                {
-                    var player = i + 2;
-                    Log($"Waiting for Player {player} to load...");
+for (int i = 0; i < 3; i++)
+{
+    var player = i + 2;
+    Log($"Waiting for Player {player} to load...");
 
-                    // Check connection to lobby here
-                    if (!await IsConnectedToLobby(token))
-                        return (false, lobbyTrainers);
+    // Check connection to lobby here
+    if (!await IsConnectedToLobby(token))
+        return (false, lobbyTrainers);
 
-                    var nidOfs = TeraNIDOffsets[i];
-                    var data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
-                    var nid = BitConverter.ToUInt64(data, 0);
-                    while (nid == 0 && DateTime.Now < endTime)
-                    {
-                        await Task.Delay(0_500, token).ConfigureAwait(false);
+    var nidOfs = TeraNIDOffsets[i];
+    var data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
+    var nid = BitConverter.ToUInt64(data, 0);
+    while (nid == 0 && DateTime.Now < endTime)
+    {
+        await Task.Delay(0_500, token).ConfigureAwait(false);
 
-                        // Check connection to lobby again here after the delay
-                        if (!await IsConnectedToLobby(token))
-                            return (false, lobbyTrainers);
+        // Check connection to lobby again here after the delay
+        if (!await IsConnectedToLobby(token))
+            return (false, lobbyTrainers);
 
-                        data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
-                        nid = BitConverter.ToUInt64(data, 0);
-                    }
+        data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
+        nid = BitConverter.ToUInt64(data, 0);
+    }
 
-                    List<long> ptr = new(Offsets.Trader2MyStatusPointer);
-                    ptr[2] += i * 0x30;
-                    var trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
+    List<long> ptr = new(Offsets.Trader2MyStatusPointer);
+    ptr[2] += i * 0x30;
+    var trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
 
-                    while (trainer.OT.Length == 0 && DateTime.Now < endTime)
-                    {
-                        await Task.Delay(0_500, token).ConfigureAwait(false);
+    while (trainer.OT.Length == 0 && DateTime.Now < endTime)
+    {
+        await Task.Delay(0_500, token).ConfigureAwait(false);
 
-                        // Check connection to lobby again here after the delay
-                        if (!await IsConnectedToLobby(token))
-                            return (false, lobbyTrainers);
+        // Check connection to lobby again here after the delay
+        if (!await IsConnectedToLobby(token))
+            return (false, lobbyTrainers);
 
-                        trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
-                    }
+        trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
+    }
 
                     if (nid != 0 && !string.IsNullOrWhiteSpace(trainer.OT))
                     {
