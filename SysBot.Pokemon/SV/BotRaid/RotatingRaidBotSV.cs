@@ -751,6 +751,12 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             while (await IsConnectedToLobby(token).ConfigureAwait(false))
             {
+                // New check: Are we still in a raid?
+                if (!await IsInRaid(token).ConfigureAwait(false))
+                {
+                    Log("Not in raid anymore, stopping battle actions.");
+                    return false;
+                }
                 TimeSpan timeInBattle = DateTime.Now - battleStartTime;
 
                 // Check for battle timeout
