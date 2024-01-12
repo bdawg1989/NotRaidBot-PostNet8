@@ -2620,18 +2620,7 @@ for (int i = 0; i < 3; i++)
 
                 await Task.Delay(2_000, token).ConfigureAwait(false);
                 await LogPlayerLocation(token); // Teleports user to closest Active Den
-
-                if (Settings.RaidSettings.MysteryRaids && !firstRun)
-                {
-                    // Count the number of existing Mystery Shiny Raids
-                    int mysteryRaidCount = Settings.ActiveRaids.Count(raid => raid.Title.Contains("Mystery Shiny Raid"));
-
-                    // Only create and add a new Mystery Shiny Raid if there are two or fewer in the list
-                    if (mysteryRaidCount <= 1)
-                    {
-                        CreateAndAddRandomShinyRaidAsRequested();
-                    }
-                }
+                await Task.Delay(2_000, token).ConfigureAwait(false);
             }
 
             for (int i = 0; i < 8; i++)
@@ -2655,6 +2644,18 @@ for (int i = 0; i < 3; i++)
             Log("Back in the overworld!");
 
             LostRaid = 0;
+
+            if (Settings.RaidSettings.MysteryRaids && !firstRun)
+            {
+                // Count the number of existing Mystery Shiny Raids
+                int mysteryRaidCount = Settings.ActiveRaids.Count(raid => raid.Title.Contains("Mystery Shiny Raid"));
+
+                // Only create and add a new Mystery Shiny Raid if there are two or fewer in the list
+                if (mysteryRaidCount <= 1)
+                {
+                    CreateAndAddRandomShinyRaidAsRequested();
+                }
+            }
         }
 
         private Dictionary<string, float[]> LoadDenLocations(string resourceName)
