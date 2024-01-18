@@ -506,7 +506,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 AddedByRACommand = true,
                 RequestedByUserID = Context.User.Id,
                 Title = $"{Context.User.Username}'s Requested Raid{(eventType == "Event" ? " (Event Raid)" : "")}",
-
+                RaidUpNext = false,
                 User = Context.User,
             };
 
@@ -516,7 +516,11 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             {
                 insertPosition++;
             }
-
+            // Set RaidUpNext to true only if the new raid is inserted immediately next in the rotation
+            if (insertPosition == RotationCount + 1)
+            {
+                newparam.RaidUpNext = true;
+            }
             // After the new raid is inserted
             Hub.Config.RotatingRaidSV.ActiveRaids.Insert(insertPosition, newparam);
 
@@ -762,42 +766,26 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             var userId = Context.User.Id;
             var list = Hub.Config.RotatingRaidSV.ActiveRaids;
 
-            // Find the index of the user's raid
-            int raidIndex = list.FindIndex(r => r.RequestedByUserID == userId && r.AddedByRACommand);
-            if (raidIndex == -1)
+            // Find the raid added by the user
+            var userRaid = list.FirstOrDefault(r => r.RequestedByUserID == userId && r.AddedByRACommand);
+            if (userRaid == null)
             {
                 await ReplyAsync("You don't have a raid added.").ConfigureAwait(false);
                 return;
             }
 
-            // Calculate the effective position excluding Mystery Shiny Raids
-            int effectivePosition = CalculateEffectivePositionExcludingMysteryRaids(raidIndex, list);
-
-            // Prevent canceling if the raid is next in line (excluding Mystery Shiny Raids)
-            if (effectivePosition == 1)
+            // Prevent canceling if the raid is up next
+            if (userRaid.RaidUpNext)
             {
                 await ReplyAsync("Your raid request is up next and cannot be canceled at this time.").ConfigureAwait(false);
                 return;
             }
 
-            // Proceed with removal if it's not next in line
-            list.RemoveAt(raidIndex);
+            // Remove the raid if it's not up next
+            list.Remove(userRaid);
             await Context.Message.DeleteAsync().ConfigureAwait(false);
             var msg = $"Cleared your Raid from the queue.";
             await ReplyAsync(msg).ConfigureAwait(false);
-        }
-
-        private int CalculateEffectivePositionExcludingMysteryRaids(int raidIndex, List<RotatingRaidParameters> raids)
-        {
-            int position = 0;
-            for (int i = RotationCount; i != raidIndex; i = (i + 1) % raids.Count)
-            {
-                if (!raids[i].Title.Contains("Mystery Shiny Raid"))
-                {
-                    position++;
-                }
-            }
-            return position;
         }
 
         [Command("removeRaidParams")]
