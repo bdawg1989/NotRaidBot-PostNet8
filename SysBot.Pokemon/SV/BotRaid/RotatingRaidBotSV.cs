@@ -7,6 +7,7 @@ using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -3063,10 +3064,11 @@ for (int i = 0; i < 3; i++)
 
             var tempContainer = new RaidContainer(container.Game);
             tempContainer.SetGame(container.Game);
-
+            int delivery = 0;
             var count = data.Length / Raid.SIZE;
             List<int> possibleGroups = GetPossibleGroups(tempContainer);
-
+            var results = tempContainer.ReadAllRaids(data, StoryProgress, EventProgress, 0, mapType);
+            delivery = results.delivery;
             (int delivery, int encounter) failed = (0, 0);
             int eventCount = 0;
             bool eventRaidFound = false;
@@ -3131,6 +3133,25 @@ for (int i = 0; i < 3; i++)
                 {
                     Settings.EventSettings.EventActive = false;
                 }
+            }
+
+            // Count the total raids processed and update respective counts for each map type
+            int totalRaidsProcessed = tempContainer.Raids.Count;
+            switch (mapType)
+            {
+                case TeraRaidMapParent.Kitakami:
+                    KitakamiDensCount += totalRaidsProcessed;
+                    break;
+                case TeraRaidMapParent.Blueberry:
+                    BlueberryDensCount += totalRaidsProcessed;
+                    break;
+                case TeraRaidMapParent.Paldea:
+                    if (delivery > 0)
+                    {
+                        InvalidDeliveryGroupCount = delivery;
+                        totalRaidsProcessed += delivery;
+                    }
+                    break;
             }
 
             var raidsList = tempContainer.Raids.ToList();
