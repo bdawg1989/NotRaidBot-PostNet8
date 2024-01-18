@@ -554,7 +554,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             switch (storyProgressLevel)
             {
                 case 6: // Unlocked 6 Stars
-                    return level >= 3 && level <= 6;
+                    return level >= 3 && level <= 7;
                 case 5: // Unlocked 5 Stars
                     return level >= 3 && level <= 5;
                 case 4: // Unlocked 4 Stars

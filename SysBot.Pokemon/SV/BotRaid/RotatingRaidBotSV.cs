@@ -751,6 +751,12 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             while (await IsConnectedToLobby(token).ConfigureAwait(false))
             {
+                // New check: Are we still in a raid?
+                if (!await IsInRaid(token).ConfigureAwait(false))
+                {
+                    Log("Not in raid anymore, stopping battle actions.");
+                    return false;
+                }
                 TimeSpan timeInBattle = DateTime.Now - battleStartTime;
 
                 // Check for battle timeout
@@ -1845,6 +1851,9 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         private async Task<(bool, List<(ulong, RaidMyStatus)>)> ReadTrainers(CancellationToken token)
         {
+            if (!await IsConnectedToLobby(token))
+                return (false, new List<(ulong, RaidMyStatus)>());
+
             await EnqueueEmbed(null, "", false, false, false, false, token).ConfigureAwait(false);
 
             List<(ulong, RaidMyStatus)> lobbyTrainers = new();
@@ -1854,30 +1863,47 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             while (!full && DateTime.Now < endTime)
             {
-                for (int i = 0; i < 3; i++)
-                {
-                    var player = i + 2;
-                    Log($"Waiting for Player {player} to load...");
+                if (!await IsConnectedToLobby(token))
+                    return (false, lobbyTrainers);
 
-                    var nidOfs = TeraNIDOffsets[i];
-                    var data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
-                    var nid = BitConverter.ToUInt64(data, 0);
-                    while (nid == 0 && DateTime.Now < endTime)
-                    {
-                        await Task.Delay(0_500, token).ConfigureAwait(false);
-                        data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
-                        nid = BitConverter.ToUInt64(data, 0);
-                    }
+for (int i = 0; i < 3; i++)
+{
+    var player = i + 2;
+    Log($"Waiting for Player {player} to load...");
 
-                    List<long> ptr = new(Offsets.Trader2MyStatusPointer);
-                    ptr[2] += i * 0x30;
-                    var trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
+    // Check connection to lobby here
+    if (!await IsConnectedToLobby(token))
+        return (false, lobbyTrainers);
 
-                    while (trainer.OT.Length == 0 && DateTime.Now < endTime)
-                    {
-                        await Task.Delay(0_500, token).ConfigureAwait(false);
-                        trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
-                    }
+    var nidOfs = TeraNIDOffsets[i];
+    var data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
+    var nid = BitConverter.ToUInt64(data, 0);
+    while (nid == 0 && DateTime.Now < endTime)
+    {
+        await Task.Delay(0_500, token).ConfigureAwait(false);
+
+        // Check connection to lobby again here after the delay
+        if (!await IsConnectedToLobby(token))
+            return (false, lobbyTrainers);
+
+        data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
+        nid = BitConverter.ToUInt64(data, 0);
+    }
+
+    List<long> ptr = new(Offsets.Trader2MyStatusPointer);
+    ptr[2] += i * 0x30;
+    var trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
+
+    while (trainer.OT.Length == 0 && DateTime.Now < endTime)
+    {
+        await Task.Delay(0_500, token).ConfigureAwait(false);
+
+        // Check connection to lobby again here after the delay
+        if (!await IsConnectedToLobby(token))
+            return (false, lobbyTrainers);
+
+        trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
+    }
 
                     if (nid != 0 && !string.IsNullOrWhiteSpace(trainer.OT))
                     {
@@ -2626,18 +2652,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                 await Task.Delay(2_000, token).ConfigureAwait(false);
                 await LogPlayerLocation(token); // Teleports user to closest Active Den
-
-                if (Settings.RaidSettings.MysteryRaids && !firstRun)
-                {
-                    // Count the number of existing Mystery Shiny Raids
-                    int mysteryRaidCount = Settings.ActiveRaids.Count(raid => raid.Title.Contains("Mystery Shiny Raid"));
-
-                    // Only create and add a new Mystery Shiny Raid if there are two or fewer in the list
-                    if (mysteryRaidCount <= 1)
-                    {
-                        CreateAndAddRandomShinyRaidAsRequested();
-                    }
-                }
+                await Task.Delay(2_000, token).ConfigureAwait(false);
             }
 
             for (int i = 0; i < 8; i++)
@@ -2661,6 +2676,18 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log("Back in the overworld!");
 
             LostRaid = 0;
+
+            if (Settings.RaidSettings.MysteryRaids && !firstRun)
+            {
+                // Count the number of existing Mystery Shiny Raids
+                int mysteryRaidCount = Settings.ActiveRaids.Count(raid => raid.Title.Contains("Mystery Shiny Raid"));
+
+                // Only create and add a new Mystery Shiny Raid if there are two or fewer in the list
+                if (mysteryRaidCount <= 1)
+                {
+                    CreateAndAddRandomShinyRaidAsRequested();
+                }
+            }
         }
 
         private Dictionary<string, float[]> LoadDenLocations(string resourceName)
