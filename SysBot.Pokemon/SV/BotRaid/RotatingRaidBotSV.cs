@@ -3057,94 +3057,91 @@ for (int i = 0; i < 3; i++)
 
         private async Task<(List<Raid>, List<ITeraRaid>, List<List<(int, int, int)>>)> ProcessRaids(byte[] data, TeraRaidMapParent mapType, CancellationToken token)
         {
-            int delivery, enc;
+            var dbgFile = $"raid_dbg_{mapType}.txt";
+            if (File.Exists(dbgFile))
+                File.Delete(dbgFile);
+
             var tempContainer = new RaidContainer(container.Game);
             tempContainer.SetGame(container.Game);
 
-            (delivery, enc) = tempContainer.ReadAllRaids(data, StoryProgress, EventProgress, 0, mapType);
+            var count = data.Length / Raid.SIZE;
+            List<int> possibleGroups = GetPossibleGroups(tempContainer);
 
-            if (enc > 0)
+            (int delivery, int encounter) failed = (0, 0);
+            int eventCount = 0;
+            bool eventRaidFound = false;
+
+            foreach (var raid in tempContainer.Raids)
             {
-                Log($"Failed to find encounters for {enc} Event raid in {mapType}.");
-            }
-
-            int totalRaidsProcessed = tempContainer.Raids.Count;
-
-            if (delivery > 0)
-            {
-                Log($"Invalid delivery group ID for {delivery} raid(s) in {mapType}. Try deleting the \"cache\" folder.");
-                if (mapType == TeraRaidMapParent.Paldea)
+                var progress = raid.IsEvent ? EventProgress : StoryProgress;
+                var raidDeliveryGroupID = -1;
+                try
                 {
-                    InvalidDeliveryGroupCount = delivery;
-                    totalRaidsProcessed += delivery; // Add the number of invalid delivery group IDs to total raids processed
-                }
-            }
+                    raidDeliveryGroupID = raid.GetDeliveryGroupID(tempContainer.DeliveryRaidPriority, possibleGroups, eventCount);
 
-            if (mapType == TeraRaidMapParent.Kitakami)
-            {
-                KitakamiDensCount += totalRaidsProcessed;
-            }
-            else if (mapType == TeraRaidMapParent.Blueberry)
-            {
-                BlueberryDensCount += totalRaidsProcessed;
-            }
-
-            // Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
-
-            // Additional logic for Paldea raids
-            if (mapType == TeraRaidMapParent.Paldea)
-            {
-                GameProgress currentProgress = (GameProgress)StoryProgress;
-                if (currentProgress == GameProgress.Unlocked5Stars || currentProgress == GameProgress.Unlocked6Stars)
-                {
-                    bool eventRaidFoundP = false;
-                    List<int> possibleGroups = GetPossibleGroups(tempContainer);
-
-                    foreach (var raid in tempContainer.Raids)
+                    // Check if the raid is an event and update settings
+                    if (raid.IsEvent && !eventRaidFound)
                     {
-                        if (raid.IsEvent)
+                        eventRaidFound = true;
+                        if (raidDeliveryGroupID != -1)
                         {
-                            eventRaidFoundP = true;
-                            var raidDeliveryGroupId = raid.GetDeliveryGroupID(tempContainer.DeliveryRaidPriority, possibleGroups, 0);
-
-                            if (raidDeliveryGroupId != -1)
-                            {
-                                Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupId;
-                                Log($"Updating Delivery Group ID to {raidDeliveryGroupId}.");
-                            }
-                            else
-                            {
-                                Log("Failed to determine a valid Delivery Group ID.");
-                            }
-
-                            var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
-                            Log($"Event Raid found! Located in {areaText}");
-
-                            if (Settings.EventSettings.EventsOn)
-                            {
-                                Settings.EventSettings.EventActive = true;
-                                DisableMysteryRaidsIfEventActive();
-                            }
-
-                            break;
+                            Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupID;
+                            Log($"Event Raid found! Updating Delivery Group ID to {raidDeliveryGroupID}.");
                         }
-                    }
+                        else
+                        {
+                            Log("Event Raid found but failed to determine a valid Delivery Group ID.");
+                        }
 
-                    if (!eventRaidFoundP)
-                    {
-                        Settings.EventSettings.RaidDeliveryGroupID = -1;
                         if (Settings.EventSettings.EventsOn)
                         {
-                            Settings.EventSettings.EventActive = false;
+                            Settings.EventSettings.EventActive = true;
+                            DisableMysteryRaidsIfEventActive();
                         }
                     }
                 }
+                catch (Exception ex)
+                {
+                    var extra = $"Group ID: {raidDeliveryGroupID}\nisFixed: {raid.Flags == 3}\nisBlack: {raid.IsBlack}\nisEvent: {raid.IsEvent}\n\n";
+                    var msg = $"{ex.Message}\nDen: {raid.Den}\nProgress: {progress}\nDifficulty: {raid.Difficulty}\n{extra}";
+                    File.AppendAllText(dbgFile, msg);
+                    failed.delivery++;
+                    continue;
+                }
+
+                var encounter = raid.GetTeraEncounter(tempContainer, progress, raidDeliveryGroupID);
+                if (encounter is null)
+                {
+                    var extra = $"Group ID: {raidDeliveryGroupID}\nisFixed: {raid.Flags == 3}\nisBlack: {raid.IsBlack}\nisEvent: {raid.IsEvent}\n\n";
+                    var msg = $"No encounters found.\nDen: {raid.Den}\nProgress: {progress}\nDifficulty: {raid.Difficulty}\n{extra}";
+                    File.AppendAllText(dbgFile, msg);
+                    failed.encounter++;
+                    continue;
+                }
+
+                if (raid.IsEvent)
+                    eventCount++;
             }
 
-            // Converting IReadOnlyList to List
+            // Reset Event Settings if no event raid was found
+            if (!eventRaidFound)
+            {
+                Settings.EventSettings.RaidDeliveryGroupID = -1;
+                if (Settings.EventSettings.EventsOn)
+                {
+                    Settings.EventSettings.EventActive = false;
+                }
+            }
+
             var raidsList = tempContainer.Raids.ToList();
             var encountersList = tempContainer.Encounters.ToList();
             var rewardsList = tempContainer.Rewards.Select(r => r.ToList()).ToList();
+
+            if (failed.delivery > 0)
+                Log($"Invalid delivery group ID for {failed.delivery} raid(s) in {mapType}.");
+
+            if (failed.encounter > 0)
+                Log($"Failed to find encounters for {failed.encounter} raid(s) in {mapType}.");
 
             return (raidsList, encountersList, rewardsList);
         }
