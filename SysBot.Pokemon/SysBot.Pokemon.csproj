@@ -21,6 +21,9 @@
     <Reference Include="PKHeX.Core.AutoMod">
       <HintPath>deps\PKHeX.Core.AutoMod.dll</HintPath>
     </Reference>
+    <Reference Include="pkNX.Structures.FlatBuffers">
+      <HintPath>deps\pkNX.Structures.FlatBuffers.dll</HintPath>
+    </Reference>
     <Reference Include="RaidCrawler.Core">
       <HintPath>deps\RaidCrawler.Core.dll</HintPath>
     </Reference>

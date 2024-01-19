@@ -7,7 +7,6 @@ using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -3040,6 +3039,10 @@ for (int i = 0; i < 3; i++)
             }
             else
             {
+                Log("Reading event raid status...");
+
+                var BaseBlockKeyPointer = await SwitchConnection.PointerAll(Offsets.BlockKeyPointer, token).ConfigureAwait(false);
+                await ReadEventRaids(BaseBlockKeyPointer, container, token).ConfigureAwait(false);
                 // Default to processing Paldea raids
                 var dataP = await ReadPaldeaRaids(token);
                 Log("Reading Paldea Raids...");
@@ -3061,10 +3064,6 @@ for (int i = 0; i < 3; i++)
             int delivery, enc;
             var tempContainer = new RaidContainer(container.Game);
             tempContainer.SetGame(container.Game);
-            Log("Reading event raid status...");
-
-            var BaseBlockKeyPointer = await SwitchConnection.PointerAll(Offsets.BlockKeyPointer, token).ConfigureAwait(false);
-            await ReadEventRaids(BaseBlockKeyPointer, container, token).ConfigureAwait(false);
 
             (delivery, enc) = tempContainer.ReadAllRaids(data, StoryProgress, EventProgress, 0, mapType);
 
