@@ -3199,25 +3199,25 @@ for (int i = 0; i < 3; i++)
 
         private List<int> GetPossibleGroups(RaidContainer container)
         {
-            List<int> possibleGroups = new List<int>();
-            if (container.DistTeraRaids is not null)
+            if (container.DistTeraRaids != null)
             {
                 foreach (TeraDistribution e in container.DistTeraRaids)
                 {
-                    if (TeraDistribution.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
-                        possibleGroups.Add(e.DeliveryGroupID);
+                    if (TeraDistribution.AvailableInGame(e.Entity, container.Game))
+                        return new List<int> { e.DeliveryGroupID };
                 }
             }
 
-            if (container.MightTeraRaids is not null)
+            if (container.MightTeraRaids != null)
             {
                 foreach (TeraMight e in container.MightTeraRaids)
                 {
-                    if (TeraMight.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
-                        possibleGroups.Add(e.DeliveryGroupID);
+                    if (TeraMight.AvailableInGame(e.Entity, container.Game))
+                        return new List<int> { e.DeliveryGroupID };
                 }
             }
-            return possibleGroups;
+
+            return new List<int>();
         }
 
         private async Task ProcessAllRaids(CancellationToken token)
