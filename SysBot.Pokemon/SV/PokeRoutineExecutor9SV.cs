@@ -20,8 +20,10 @@ namespace SysBot.Pokemon
     {
         protected PokeDataOffsetsSV Offsets { get; } = new();
         public ulong returnOfs = 0;
+
         private ulong KeyBlockAddress = 0;
-        private ulong BaseBlockKeyPointer;
+
+        public ulong BaseBlockKeyPointer;
         protected PokeRoutineExecutor9SV(PokeBotState cfg) : base(cfg)
         {
         }
@@ -315,6 +317,7 @@ namespace SysBot.Pokemon
                 deliveryLotteryRewardFlatbuffer
             );
         }
+
 
         public static (PK9, uint) IsSeedReturned(ITeraRaid enc, Raid raid)
         {
