@@ -7,6 +7,8 @@ using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -19,6 +21,7 @@ using System.Threading.Tasks;
 using static SysBot.Base.SwitchButton;
 using static SysBot.Pokemon.RotatingRaidSettingsSV;
 using static SysBot.Pokemon.SV.BotRaid.Blocks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SysBot.Pokemon.SV.BotRaid
 {
@@ -3064,16 +3067,10 @@ for (int i = 0; i < 3; i++)
             int delivery, enc;
             var tempContainer = new RaidContainer(container.Game);
             tempContainer.SetGame(container.Game);
+            List<int> raidDeliveryGroupIDList;
 
-            (delivery, enc) = tempContainer.ReadAllRaids(data, StoryProgress, EventProgress, 0, mapType);
-
-            if (enc > 0)
-            {
-                Log($"Failed to find encounters for {enc} Event raid in {mapType}.");
-            }
-
+            (delivery, enc, raidDeliveryGroupIDList) = container.ReadAllRaids(data, StoryProgress, EventProgress, 0, TeraRaidMapParent.Paldea);
             int totalRaidsProcessed = tempContainer.Raids.Count;
-
             if (delivery > 0)
             {
                 Log($"Invalid delivery group ID for {delivery} raid(s) in {mapType}. Try deleting the \"cache\" folder.");
@@ -3093,54 +3090,47 @@ for (int i = 0; i < 3; i++)
                 BlueberryDensCount += totalRaidsProcessed;
             }
 
-            // Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
-
-            // Additional logic for Paldea raids
-            if (mapType == TeraRaidMapParent.Paldea)
+            GameProgress currentProgress = (GameProgress)StoryProgress;
+            if (currentProgress == GameProgress.Unlocked5Stars || currentProgress == GameProgress.Unlocked6Stars)
             {
-                GameProgress currentProgress = (GameProgress)StoryProgress;
-                if (currentProgress == GameProgress.Unlocked5Stars || currentProgress == GameProgress.Unlocked6Stars)
+                bool eventRaidFoundP = false;
+                int eventRaidPAreaId = -1;
+                int eventRaidPDenId = -1;
+                int raidIndex = 0;
+
+                foreach (var raid in container.Raids)
                 {
-                    bool eventRaidFoundP = false;
-                    List<int> possibleGroups = GetPossibleGroups(tempContainer);
-
-                    foreach (var raid in tempContainer.Raids)
+                    if (raid.IsEvent)
                     {
-                        if (raid.IsEvent)
+                        eventRaidFoundP = true;
+                        if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
                         {
-                            eventRaidFoundP = true;
-                            var raidDeliveryGroupId = raid.GetDeliveryGroupID(tempContainer.DeliveryRaidPriority, possibleGroups, 0);
-
-                            if (raidDeliveryGroupId != -1)
-                            {
-                                Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupId;
-                                Log($"Updating Delivery Group ID to {raidDeliveryGroupId}.");
-                            }
-                            else
-                            {
-                                Log("Failed to determine a valid Delivery Group ID.");
-                            }
-
-                            var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
-                            Log($"Event Raid found! Located in {areaText}");
-
-                            if (Settings.EventSettings.EventsOn)
-                            {
-                                Settings.EventSettings.EventActive = true;
-                                DisableMysteryRaidsIfEventActive();
-                            }
-
-                            break;
+                            Settings.EventSettings.EventActive = true;  // Update EventActive only if EventOn is true
+                            DisableMysteryRaidsIfEventActive();
                         }
-                    }
+                        eventRaidPAreaId = (int)raid.Area;
+                        eventRaidPDenId = (int)raid.Den;
 
-                    if (!eventRaidFoundP)
+                        var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
+                        Log($"Event Raid found! Located in {areaText}");
+
+                         if (raidIndex < raidDeliveryGroupIDList.Count)
+                         {
+                             Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupIDList[raidIndex];
+                             Log($"Updating Delivery Group ID to {raidDeliveryGroupIDList[raidIndex]}.");
+                         } 
+
+                        break;
+                    }
+                    raidIndex++;
+                }
+
+                if (!eventRaidFoundP)
+                {
+                    if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
                     {
                         Settings.EventSettings.RaidDeliveryGroupID = -1;
-                        if (Settings.EventSettings.EventsOn)
-                        {
-                            Settings.EventSettings.EventActive = false;
-                        }
+                        Settings.EventSettings.EventActive = false;  // Update EventActive only if EventOn is true
                     }
                 }
             }
@@ -3153,7 +3143,7 @@ for (int i = 0; i < 3; i++)
             return (raidsList, encountersList, rewardsList);
         }
 
-        private async Task InitializeRaidBlockPointers(CancellationToken token)
+            private async Task InitializeRaidBlockPointers(CancellationToken token)
         {
             RaidBlockPointerP = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerP, token).ConfigureAwait(false);
             RaidBlockPointerK = await SwitchConnection.PointerAll(Offsets.RaidBlockPointerK, token).ConfigureAwait(false);
@@ -3237,7 +3227,7 @@ for (int i = 0; i < 3; i++)
                 Settings.ActiveRaids[0].Seed = denHexSeed;
             }
 
-            int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
+            int raidDeliveryGroupID = Settings.EventSettings.RaidDeliveryGroupID;
 
             for (int i = 0; i < allRaids.Count; i++)
             {
@@ -3269,8 +3259,9 @@ for (int i = 0; i < 3; i++)
 
                         var areaText = $"{Areas.GetArea((int)(allRaids[i].Area - 1), allRaids[i].MapParent)} - Den {allRaids[i].Den}";
                         Log($"Seed {seed:X8} found for {(Species)allEncounters[i].Species} in {areaText}");
+                        var progress = allRaids[i].IsEvent ? EventProgress : StoryProgress;
                         var stars = allRaids[i].IsEvent ? allEncounters[i].Stars : allRaids[i].GetStarCount(allRaids[i].Difficulty, StoryProgress, allRaids[i].IsBlack);
-                        var encounter = allRaids[i].GetTeraEncounter(container, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
+                        var encounter = allRaids[i].GetTeraEncounter(container, progress, raidDeliveryGroupID);
                         var pkinfo = RaidExtensions<PK9>.GetRaidPrintName(pk);
                         var strings = GameInfo.GetStrings(1);
                         var moves = new ushort[4] { allEncounters[i].Move1, allEncounters[i].Move2, allEncounters[i].Move3, allEncounters[i].Move4 };
