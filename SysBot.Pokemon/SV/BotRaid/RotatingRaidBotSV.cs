@@ -3383,12 +3383,30 @@ for (int i = 0; i < 3; i++)
             var raid = new Raid(raidbyte, map); // map is -> TeraRaidMapParent.Paldea, .Kitakami, or .Blueberry
             var progress = storyProgressLevel;
             var raid_delivery_group_id = raidDeliveryGroupID;
+
+            // Attempt to get the encounter
             var encounter = raid.GetTeraEncounter(_container, raid.IsEvent ? 3 : progress, contentType == 3 ? 1 : raid_delivery_group_id);
+
+            // Check if encounter is null before proceeding
+            if (encounter == null)
+            {
+                var errorEmbed = new EmbedBuilder().WithDescription("Encounter data not available.").Build();
+                return (new PK9(), errorEmbed);
+            }
             var reward = encounter.GetRewards(_container, raid, 0);
             var stars = raid.IsEvent ? encounter.Stars : raid.GetStarCount(raid.Difficulty, storyProgressLevel, raid.IsBlack);
             var teraType = raid.GetTeraType(encounter);
             var form = encounter.Form;
-            var level = encounter.Level;
+            byte level;
+
+            if (encounter != null)
+            {
+                level = encounter.Level;
+            }
+            else
+            {
+                level = 100;
+            }
 
             var param = encounter.GetParam();
             var pk = new PK9
