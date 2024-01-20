@@ -45,11 +45,13 @@ namespace SysBot.Pokemon.SV.BotRaid
         private int WinCount;
         private int LossCount;
         private int SeedIndexToReplace = -1;
+        public static GameProgress GameProgress;
+        public static bool? currentSpawnsEnabled;
         public int StoryProgress;
         private int EventProgress;
         private int EmptyRaid = 0;
         private int LostRaid = 0;
-        readonly int FieldID = 0;
+        private int FieldID = 0;
         private bool firstRun = true;
         public static int RotationCount { get; set; }
         private ulong TodaySeed;
@@ -64,6 +66,9 @@ namespace SysBot.Pokemon.SV.BotRaid
         private readonly Dictionary<ulong, int> RaidTracker = new();
         private SAV9SV HostSAV = new();
         private DateTime StartTime = DateTime.Now;
+        public static RaidContainer? container;
+        public static bool IsKitakami = false;
+        public static bool IsBlueberry = false;
         private DateTime TimeForRollBackCheck = DateTime.Now;
         private static bool hasSwapped = false;
         private uint originalAreaId;
@@ -73,43 +78,13 @@ namespace SysBot.Pokemon.SV.BotRaid
         private uint denIdIndex0;
         private uint lotteryGroupIdIndex0;
         private uint originalLotteryGroupId;
-        readonly uint areaIdIndex1;
-        readonly uint denIdIndex1;
+        private uint areaIdIndex1;
+        private uint denIdIndex1;
         private string denHexSeed;
-        readonly bool indicesInitialized = false;
+        private bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
         private static int BlueberryDensCount = 0;
         private int InvalidDeliveryGroupCount = 0;
-        private static RaidContainer? _container;
-        public static RaidContainer? Container
-        {
-            get { return _container; }
-            set { _container = value; }
-        }
-        private static bool _isKitakami = false;
-        public static bool IsKitakami
-        {
-            get { return _isKitakami; }
-            set { _isKitakami = value; }
-        }
-        private static bool _isBlueberry = false;
-        public static bool IsBlueberry
-        {
-            get { return _isBlueberry; }
-            set { _isBlueberry = value; }
-        }
-        private static GameProgress _gameProgress;
-        public static GameProgress GameProgress
-        {
-            get { return _gameProgress; }
-            set { _gameProgress = value; }
-        }
-        private static bool? _currentSpawnsEnabled;
-        public static bool? CurrentSpawnsEnabled
-        {
-            get { return _currentSpawnsEnabled; }
-            set { _currentSpawnsEnabled = value; }
-        }
 
         public override async Task MainLoop(CancellationToken token)
         {
@@ -1277,15 +1252,15 @@ namespace SysBot.Pokemon.SV.BotRaid
                 // Perform swap
                 await LogAndUpdateValue("Area ID", areaIdIndex0, 4, AdjustPointer(currentPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", denIdIndex0, 4, AdjustPointer(currentPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token); 
+                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
 
                 await LogAndUpdateValue("Area ID", currentAreaId, 4, AdjustPointer(swapPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", currentDenId, 4, AdjustPointer(swapPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", currentLotteryGroup, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token); 
+                await LogAndUpdateValue("Lottery Group", currentLotteryGroup, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
 
                 originalAreaId = currentAreaId;
                 originalDenId = currentDenId;
-                originalLotteryGroupId = currentLotteryGroup; 
+                originalLotteryGroupId = currentLotteryGroup;
                 originalIdsSet = true;
                 hasSwapped = true;
             }
@@ -1302,7 +1277,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 // Restore index 0 to its original state
                 await LogAndUpdateValue("Area ID", areaIdIndex0, 4, AdjustPointer(swapPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", denIdIndex0, 4, AdjustPointer(swapPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token); 
+                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
 
                 hasSwapped = false;
             }
@@ -1891,44 +1866,44 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (!await IsConnectedToLobby(token))
                     return (false, lobbyTrainers);
 
-for (int i = 0; i < 3; i++)
-{
-    var player = i + 2;
-    Log($"Waiting for Player {player} to load...");
+                for (int i = 0; i < 3; i++)
+                {
+                    var player = i + 2;
+                    Log($"Waiting for Player {player} to load...");
 
-    // Check connection to lobby here
-    if (!await IsConnectedToLobby(token))
-        return (false, lobbyTrainers);
+                    // Check connection to lobby here
+                    if (!await IsConnectedToLobby(token))
+                        return (false, lobbyTrainers);
 
-    var nidOfs = TeraNIDOffsets[i];
-    var data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
-    var nid = BitConverter.ToUInt64(data, 0);
-    while (nid == 0 && DateTime.Now < endTime)
-    {
-        await Task.Delay(0_500, token).ConfigureAwait(false);
+                    var nidOfs = TeraNIDOffsets[i];
+                    var data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
+                    var nid = BitConverter.ToUInt64(data, 0);
+                    while (nid == 0 && DateTime.Now < endTime)
+                    {
+                        await Task.Delay(0_500, token).ConfigureAwait(false);
 
-        // Check connection to lobby again here after the delay
-        if (!await IsConnectedToLobby(token))
-            return (false, lobbyTrainers);
+                        // Check connection to lobby again here after the delay
+                        if (!await IsConnectedToLobby(token))
+                            return (false, lobbyTrainers);
 
-        data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
-        nid = BitConverter.ToUInt64(data, 0);
-    }
+                        data = await SwitchConnection.ReadBytesAbsoluteAsync(nidOfs, 8, token).ConfigureAwait(false);
+                        nid = BitConverter.ToUInt64(data, 0);
+                    }
 
-    List<long> ptr = new(Offsets.Trader2MyStatusPointer);
-    ptr[2] += i * 0x30;
-    var trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
+                    List<long> ptr = new(Offsets.Trader2MyStatusPointer);
+                    ptr[2] += i * 0x30;
+                    var trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
 
-    while (trainer.OT.Length == 0 && DateTime.Now < endTime)
-    {
-        await Task.Delay(0_500, token).ConfigureAwait(false);
+                    while (trainer.OT.Length == 0 && DateTime.Now < endTime)
+                    {
+                        await Task.Delay(0_500, token).ConfigureAwait(false);
 
-        // Check connection to lobby again here after the delay
-        if (!await IsConnectedToLobby(token))
-            return (false, lobbyTrainers);
+                        // Check connection to lobby again here after the delay
+                        if (!await IsConnectedToLobby(token))
+                            return (false, lobbyTrainers);
 
-        trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
-    }
+                        trainer = await GetTradePartnerMyStatus(ptr, token).ConfigureAwait(false);
+                    }
 
                     if (nid != 0 && !string.IsNullOrWhiteSpace(trainer.OT))
                     {
@@ -2123,8 +2098,8 @@ for (int i = 0; i < 3; i++)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);
                 Log($"Current Game Progress identified as {GameProgress}.");
-                _currentSpawnsEnabled = (bool?)await ReadBlock(RaidDataBlocks.KWildSpawnsEnabled, CancellationToken.None);
-                Log($"Current Overworld Spawn State {_currentSpawnsEnabled}.");
+                currentSpawnsEnabled = (bool?)await ReadBlock(RaidDataBlocks.KWildSpawnsEnabled, CancellationToken.None);
+                Log($"Current Overworld Spawn State {currentSpawnsEnabled}.");
             }
 
             var nidPointer = new long[] { Offsets.LinkTradePartnerNIDPointer[0], Offsets.LinkTradePartnerNIDPointer[1], Offsets.LinkTradePartnerNIDPointer[2] };
@@ -2637,15 +2612,15 @@ for (int i = 0; i < 3; i++)
                 if (Settings.RaidSettings.DisableOverworldSpawns)
                 {
                     Log("Checking current state of Overworld Spawns.");
-                    if (_currentSpawnsEnabled.HasValue)
+                    if (currentSpawnsEnabled.HasValue)
                     {
-                        Log($"Current Overworld Spawns state: {_currentSpawnsEnabled.Value}");
+                        Log($"Current Overworld Spawns state: {currentSpawnsEnabled.Value}");
 
-                        if (_currentSpawnsEnabled.Value)
+                        if (currentSpawnsEnabled.Value)
                         {
                             Log("Overworld Spawns are enabled, attempting to disable.");
-                            await WriteBlock(false, RaidDataBlocks.KWildSpawnsEnabled, token, _currentSpawnsEnabled);
-                            _currentSpawnsEnabled = false;
+                            await WriteBlock(false, RaidDataBlocks.KWildSpawnsEnabled, token, currentSpawnsEnabled);
+                            currentSpawnsEnabled = false;
                             Log("Overworld Spawns successfully disabled.");
                         }
                         else
@@ -2657,13 +2632,13 @@ for (int i = 0; i < 3; i++)
                 else // When Settings.DisableOverworldSpawns is false, ensure Overworld spawns are enabled
                 {
                     Log("Settings indicate Overworld Spawns should be enabled. Checking current state.");
-                    Log($"Current Overworld Spawns state: {_currentSpawnsEnabled.Value}");
+                    Log($"Current Overworld Spawns state: {currentSpawnsEnabled.Value}");
 
-                    if (!_currentSpawnsEnabled.Value)
+                    if (!currentSpawnsEnabled.Value)
                     {
                         Log("Overworld Spawns are disabled, attempting to enable.");
-                        await WriteBlock(true, RaidDataBlocks.KWildSpawnsEnabled, token, _currentSpawnsEnabled);
-                        _currentSpawnsEnabled = true;
+                        await WriteBlock(true, RaidDataBlocks.KWildSpawnsEnabled, token, currentSpawnsEnabled);
+                        currentSpawnsEnabled = true;
                         Log("Overworld Spawns successfully enabled.");
                     }
                     else
@@ -3033,8 +3008,8 @@ for (int i = 0; i < 3; i++)
                 await LogPlayerLocation(token); // Get seed from current den for processing
             }
             string game = await DetermineGame(token);
-            _container = new(game);
-            _container.SetGame(game);
+            container = new(game);
+            container.SetGame(game);
 
             await SetStoryAndEventProgress(token);
 
@@ -3073,30 +3048,34 @@ for (int i = 0; i < 3; i++)
                 allRewards.AddRange(paldeaRewards);
             }
 
-            var tempContainer = new RaidContainer(game);
-            tempContainer.SetRaids(allRaids);
-            tempContainer.SetEncounters(allEncounters);
-            tempContainer.SetRewards(allRewards);
-
-            // Now call ProcessAllRaids with the populated tempContainer
-            await ProcessAllRaids(tempContainer, token);
+            // Set combined data to container and process all raids
+            container.SetRaids(allRaids);
+            container.SetEncounters(allEncounters);
+            container.SetRewards(allRewards);
+            await ProcessAllRaids(token);
         }
 
         private async Task<(List<Raid>, List<ITeraRaid>, List<List<(int, int, int)>>)> ProcessRaids(byte[] data, TeraRaidMapParent mapType, CancellationToken token)
         {
             int delivery, enc;
-            var tempContainer = new RaidContainer(_container.Game);
-            tempContainer.SetGame(_container.Game);
+            var tempContainer = new RaidContainer(container.Game);
+            tempContainer.SetGame(container.Game);
 
             Log("Reading event raid status...");
             // Read event raids into tempContainer
             var BaseBlockKeyPointer = await SwitchConnection.PointerAll(Offsets.BlockKeyPointer, token).ConfigureAwait(false);
             await ReadEventRaids(BaseBlockKeyPointer, tempContainer, token).ConfigureAwait(false);
+            await ReadEventRaids(BaseBlockKeyPointer, container, token).ConfigureAwait(false);
 
-            List<int> raidDeliveryGroupIDList;
+            (delivery, enc) = tempContainer.ReadAllRaids(data, StoryProgress, EventProgress, 0, mapType);
 
-            (delivery, enc, raidDeliveryGroupIDList) = tempContainer.ReadAllRaids(data, StoryProgress, EventProgress, 0, mapType);
+            if (enc > 0)
+            {
+                Log($"Failed to find encounters for {enc} Event raid in {mapType}.");
+            }
+
             int totalRaidsProcessed = tempContainer.Raids.Count;
+
             if (delivery > 0)
             {
                 Log($"Invalid delivery group ID for {delivery} raid(s) in {mapType}. Try deleting the \"cache\" folder.");
@@ -3107,6 +3086,7 @@ for (int i = 0; i < 3; i++)
                 }
             }
 
+
             if (mapType == TeraRaidMapParent.Kitakami)
             {
                 KitakamiDensCount += totalRaidsProcessed;
@@ -3116,46 +3096,59 @@ for (int i = 0; i < 3; i++)
                 BlueberryDensCount += totalRaidsProcessed;
             }
 
-            GameProgress currentProgress = (GameProgress)StoryProgress;
-            if (currentProgress == GameProgress.Unlocked5Stars || currentProgress == GameProgress.Unlocked6Stars)
+            // Log($"Processed {totalRaidsProcessed} raids in {mapType}.");
+
+            // Additional logic for Paldea raids
+            if (mapType == TeraRaidMapParent.Paldea)
             {
-                bool eventRaidFoundP = false;
-                int eventRaidPAreaId = -1;
-                int eventRaidPDenId = -1;
-                int raidIndex = 0;
-
-                foreach (var raid in tempContainer.Raids)
+                GameProgress currentProgress = (GameProgress)StoryProgress;
+                if (currentProgress == GameProgress.Unlocked5Stars || currentProgress == GameProgress.Unlocked6Stars)
                 {
-                    if (raid.IsEvent)
+                    bool eventRaidFoundP = false;
+                    List<int> possibleGroups = GetPossibleGroups(tempContainer);
+
+                    foreach (var raid in tempContainer.Raids)
                     {
-                        eventRaidFoundP = true;
-                        if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
+                        if (raid.IsEvent)
                         {
-                            Settings.EventSettings.EventActive = true;  // Update EventActive only if EventOn is true
-                            DisableMysteryRaidsIfEventActive();
-                            if (raidIndex < raidDeliveryGroupIDList.Count)
+                            eventRaidFoundP = true;
+                            var raidDeliveryGroupId = raid.GetDeliveryGroupID(tempContainer.DeliveryRaidPriority, possibleGroups, 0);
+
+                            if (raidDeliveryGroupId != -1)
                             {
-                                Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupIDList[raidIndex];
-                                Log($"Updating Delivery Group ID to {raidDeliveryGroupIDList[raidIndex]}.");
+                                Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupId;
+                                Log($"Updating Delivery Group ID to {raidDeliveryGroupId}.");
                             }
+                            else
+                            {
+                                Log("Failed to determine a valid Delivery Group ID.");
+                            }
+
+                            // Get the species info
+                            var encounter = raid.GetTeraEncounter(tempContainer, raid.IsEvent ? 3 : StoryProgress, raidDeliveryGroupId);
+                            var speciesName = encounter != null ? ((Species)encounter.Species).ToString() : "Unknown";
+
+                            var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
+                            Log($"Event Raid found! {speciesName} located in {areaText}");
+
+
+                            if (Settings.EventSettings.EventsOn)
+                            {
+                                Settings.EventSettings.EventActive = true;
+                                DisableMysteryRaidsIfEventActive();
+                            }
+
+                            break;
                         }
-                        eventRaidPAreaId = (int)raid.Area;
-                        eventRaidPDenId = (int)raid.Den;
-
-                        var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
-                        Log($"Event Raid found! Located in {areaText}");
-
-                        break;
                     }
-                    raidIndex++;
-                }
 
-                if (!eventRaidFoundP)
-                {
-                    if (Settings.EventSettings.EventsOn)  // Check if EventOn is true
+                    if (!eventRaidFoundP)
                     {
                         Settings.EventSettings.RaidDeliveryGroupID = -1;
-                        Settings.EventSettings.EventActive = false;  // Update EventActive only if EventOn is true
+                        if (Settings.EventSettings.EventsOn)
+                        {
+                            Settings.EventSettings.EventActive = false;
+                        }
                     }
                 }
             }
@@ -3211,11 +3204,34 @@ for (int i = 0; i < 3; i++)
             return dataB;
         }
 
-        private async Task ProcessAllRaids(RaidContainer raidContainer, CancellationToken token)
+        private List<int> GetPossibleGroups(RaidContainer container)
         {
-            var allRaids = raidContainer.Raids;
-            var allEncounters = raidContainer.Encounters;
-            var allRewards = raidContainer.Rewards;
+            List<int> possibleGroups = new List<int>();
+            if (container.DistTeraRaids is not null)
+            {
+                foreach (TeraDistribution e in container.DistTeraRaids)
+                {
+                    if (TeraDistribution.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
+                        possibleGroups.Add(e.DeliveryGroupID);
+                }
+            }
+
+            if (container.MightTeraRaids is not null)
+            {
+                foreach (TeraMight e in container.MightTeraRaids)
+                {
+                    if (TeraMight.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
+                        possibleGroups.Add(e.DeliveryGroupID);
+                }
+            }
+            return possibleGroups;
+        }
+
+        private async Task ProcessAllRaids(CancellationToken token)
+        {
+            var allRaids = container.Raids;
+            var allEncounters = container.Encounters;
+            var allRewards = container.Rewards;
 
             string originalSeedString = ""; // Store the original seed as a string
             uint denHexSeedUInt;
@@ -3262,7 +3278,7 @@ for (int i = 0; i < 3; i++)
                         var areaText = $"{Areas.GetArea((int)(allRaids[i].Area - 1), allRaids[i].MapParent)} - Den {allRaids[i].Den}";
                         Log($"Seed {seed:X8} found for {(Species)allEncounters[i].Species} in {areaText}");
                         var stars = allRaids[i].IsEvent ? allEncounters[i].Stars : allRaids[i].GetStarCount(allRaids[i].Difficulty, StoryProgress, allRaids[i].IsBlack);
-                        var encounter = allRaids[i].GetTeraEncounter(raidContainer, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
+                        var encounter = allRaids[i].GetTeraEncounter(container, allRaids[i].IsEvent ? 3 : StoryProgress, raid_delivery_group_id);
                         if (encounter != null)
                         {
                             RaidEmbedInfo.RaidLevel = encounter.Level;
@@ -3310,6 +3326,7 @@ for (int i = 0; i < 3; i++)
                 }
             }
         }
+
         private async Task FindSeedIndexInRaids(uint denHexSeedUInt, CancellationToken token)
         {
             var upperBound = KitakamiDensCount == 25 ? 94 : 95;
@@ -3352,10 +3369,6 @@ for (int i = 0; i < 3; i++)
             }
 
             Log($"Seed {denHexSeedUInt:X8} not found in any region.");
-            await CloseGame(Hub.Config, token).ConfigureAwait(false);
-            await StartGameRaid(Hub.Config, token).ConfigureAwait(false);
-
-
         }
 
         public static (PK9, Embed) RaidInfoCommand(string seedValue, int contentType, TeraRaidMapParent map, int storyProgressLevel, int raidDeliveryGroupID, List<string> rewardsToShow, bool isEvent = false)
@@ -3383,30 +3396,12 @@ for (int i = 0; i < 3; i++)
             var raid = new Raid(raidbyte, map); // map is -> TeraRaidMapParent.Paldea, .Kitakami, or .Blueberry
             var progress = storyProgressLevel;
             var raid_delivery_group_id = raidDeliveryGroupID;
-
-            // Attempt to get the encounter
-            var encounter = raid.GetTeraEncounter(_container, raid.IsEvent ? 3 : progress, contentType == 3 ? 1 : raid_delivery_group_id);
-
-            // Check if encounter is null before proceeding
-            if (encounter == null)
-            {
-                var errorEmbed = new EmbedBuilder().WithDescription("Encounter data not available.").Build();
-                return (new PK9(), errorEmbed);
-            }
-            var reward = encounter.GetRewards(_container, raid, 0);
+            var encounter = raid.GetTeraEncounter(container, raid.IsEvent ? 3 : progress, contentType == 3 ? 1 : raid_delivery_group_id);
+            var reward = encounter.GetRewards(container, raid, 0);
             var stars = raid.IsEvent ? encounter.Stars : raid.GetStarCount(raid.Difficulty, storyProgressLevel, raid.IsBlack);
             var teraType = raid.GetTeraType(encounter);
             var form = encounter.Form;
-            byte level;
-
-            if (encounter != null)
-            {
-                level = encounter.Level;
-            }
-            else
-            {
-                level = 100;
-            }
+            var level = encounter.Level;
 
             var param = encounter.GetParam();
             var pk = new PK9
