@@ -80,6 +80,7 @@ namespace SysBot.Pokemon.SV.BotRaid
         private uint originalLotteryGroupId;
         private uint areaIdIndex1;
         private uint denIdIndex1;
+        private uint lotteryGroupIdIndex1;
         private string denHexSeed;
         private bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
@@ -1022,7 +1023,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 string raidType = crystalType == TeraCrystalType.Might ? "Might" : "Distribution";
                 await SwapRaidLocationsAsync(index, raidType, token).ConfigureAwait(false);
                 await Task.Delay(1_500, token).ConfigureAwait(false);
-                await SyncSeedToIndexZero(index, raidType, token).ConfigureAwait(false);
+                await SyncSeedToIndex(index, raidType, token).ConfigureAwait(false);
             }
             else
             {
@@ -1197,17 +1198,17 @@ namespace SysBot.Pokemon.SV.BotRaid
             return (((num3 >> 16) ^ (num3 & 0xFFFF)) >> 4 == ((num2 >> 16) ^ (num2 & 0xFFFF)) >> 4) ? 1 : 0;
         }
 
-        private async Task SyncSeedToIndexZero(int index, string raidType, CancellationToken token)
+        private async Task SyncSeedToIndex(int index, string raidType, CancellationToken token)
         {
             if (index == -1)
                 return;
 
-            // The target index is always 0 as per the new requirement
-            const int targetIndex = 0;
+            // Determine the target index based on the raid type
+            int targetIndex = raidType == "Distribution" ? 1 : 0;
 
             // Determine pointers for the specified index and the target index
             List<long> ptrAtIndex = DeterminePointer(index); // Pointer for the current index
-            List<long> ptrAtTarget = DeterminePointer(targetIndex); // Pointer for the target index (always 0)
+            List<long> ptrAtTarget = DeterminePointer(targetIndex); // Pointer for the target index
 
             // Read the seed from the specified index
             var seedBytesAtIndex = await SwitchConnection.PointerPeek(4, ptrAtIndex, token).ConfigureAwait(false);
@@ -1220,12 +1221,13 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log($"Synced seed from index {index} to index {targetIndex}");
         }
 
+
         private async Task SwapRaidLocationsAsync(int currentRaidIndex, string raidType, CancellationToken token)
         {
-            // We always swap with index 0
-            const int swapWithIndex = 0;
+            // Determine the index to swap with based on the raid type
+            int swapWithIndex = raidType == "Distribution" ? 1 : 0;
 
-            // Get the pointers for the current raid index and index 0
+            // Get the pointers for the current raid index and the swap index
             List<long> currentPointer = CalculateDirectPointer(currentRaidIndex);
             List<long> swapPointer = CalculateDirectPointer(swapWithIndex);
 
@@ -1233,26 +1235,44 @@ namespace SysBot.Pokemon.SV.BotRaid
             int denIdOffset = 25;
             int lotteryGroupOffset = 24;
 
-            // Read and store area, den, and lottery group ID values for index 0
+            // Read and store area, den, and lottery group ID values for the swap index
             if (!originalIdsSet)
             {
-                areaIdIndex0 = await ReadValue("Area ID", 4, AdjustPointer(swapPointer, areaIdOffset), token);
-                denIdIndex0 = await ReadValue("Den ID", 4, AdjustPointer(swapPointer, denIdOffset), token);
-                lotteryGroupIdIndex0 = await ReadValue("Lottery Group", 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
+                uint areaIdSwapIndex = await ReadValue("Area ID", 4, AdjustPointer(swapPointer, areaIdOffset), token);
+                uint denIdSwapIndex = await ReadValue("Den ID", 4, AdjustPointer(swapPointer, denIdOffset), token);
+                uint lotteryGroupIdSwapIndex = await ReadValue("Lottery Group", 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
+
+                if (swapWithIndex == 0)
+                {
+                    areaIdIndex0 = areaIdSwapIndex;
+                    denIdIndex0 = denIdSwapIndex;
+                    lotteryGroupIdIndex0 = lotteryGroupIdSwapIndex;
+                }
+                else
+                {
+                    areaIdIndex1 = areaIdSwapIndex;
+                    denIdIndex1 = denIdSwapIndex;
+                    lotteryGroupIdIndex1 = lotteryGroupIdSwapIndex;
+                }
+
                 originalIdsSet = true;
             }
 
-            // Read values from current index
+            // Read values from the current index
             uint currentAreaId = await ReadValue("Area ID", 4, AdjustPointer(currentPointer, areaIdOffset), token);
             uint currentDenId = await ReadValue("Den ID", 4, AdjustPointer(currentPointer, denIdOffset), token);
             uint currentLotteryGroup = await ReadValue("Lottery Group", 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
 
             if (!hasSwapped && (raidType == "Might" || raidType == "Distribution"))
             {
+                uint swapAreaId = swapWithIndex == 0 ? areaIdIndex0 : areaIdIndex1;
+                uint swapDenId = swapWithIndex == 0 ? denIdIndex0 : denIdIndex1;
+                uint swapLotteryGroup = swapWithIndex == 0 ? lotteryGroupIdIndex0 : lotteryGroupIdIndex1;
+
                 // Perform swap
-                await LogAndUpdateValue("Area ID", areaIdIndex0, 4, AdjustPointer(currentPointer, areaIdOffset), token);
-                await LogAndUpdateValue("Den ID", denIdIndex0, 4, AdjustPointer(currentPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
+                await LogAndUpdateValue("Area ID", swapAreaId, 4, AdjustPointer(currentPointer, areaIdOffset), token);
+                await LogAndUpdateValue("Den ID", swapDenId, 4, AdjustPointer(currentPointer, denIdOffset), token);
+                await LogAndUpdateValue("Lottery Group", swapLotteryGroup, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
 
                 await LogAndUpdateValue("Area ID", currentAreaId, 4, AdjustPointer(swapPointer, areaIdOffset), token);
                 await LogAndUpdateValue("Den ID", currentDenId, 4, AdjustPointer(swapPointer, denIdOffset), token);
@@ -1261,7 +1281,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 originalAreaId = currentAreaId;
                 originalDenId = currentDenId;
                 originalLotteryGroupId = currentLotteryGroup;
-                originalIdsSet = true;
                 hasSwapped = true;
             }
             else if (hasSwapped && (raidType != "Might" && raidType != "Distribution"))
@@ -1274,10 +1293,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                 await LogAndUpdateValue("Den ID", originalDenId, 4, AdjustPointer(currentPointer, denIdOffset), token);
                 await LogAndUpdateValue("Lottery Group", originalLotteryGroupId, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
 
-                // Restore index 0 to its original state
-                await LogAndUpdateValue("Area ID", areaIdIndex0, 4, AdjustPointer(swapPointer, areaIdOffset), token);
-                await LogAndUpdateValue("Den ID", denIdIndex0, 4, AdjustPointer(swapPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", lotteryGroupIdIndex0, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
+                uint restoreAreaId = hasSwapped ? areaIdIndex1 : areaIdIndex0;
+                uint restoreDenId = hasSwapped ? denIdIndex1 : denIdIndex0;
+                uint restoreLotteryGroup = hasSwapped ? lotteryGroupIdIndex1 : lotteryGroupIdIndex0;
+
+                // Restore swap index to its original state
+                await LogAndUpdateValue("Area ID", restoreAreaId, 4, AdjustPointer(swapPointer, areaIdOffset), token);
+                await LogAndUpdateValue("Den ID", restoreDenId, 4, AdjustPointer(swapPointer, denIdOffset), token);
+                await LogAndUpdateValue("Lottery Group", restoreLotteryGroup, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
 
                 hasSwapped = false;
             }
@@ -1625,7 +1648,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             await Click(HOME, 0_500, token).ConfigureAwait(false);
 
             var currentSeed = Settings.ActiveRaids[RotationCount].Seed;
-            if (firstRun && denHexSeed == currentSeed)
+            if (denHexSeed == currentSeed)
             {
                 var len = string.Empty;
                 foreach (var l in Settings.ActiveRaids[RotationCount].PartyPK)
@@ -1654,37 +1677,10 @@ namespace SysBot.Pokemon.SV.BotRaid
                         await Click(B, 1_500, token).ConfigureAwait(false);
                     Log("PartyPK switch successful.");
                 }
-                Log("Seeds don't match, skipping PartyPK Injection.");
             }
-            else if (!firstRun)
+            else
             {
-                var len = string.Empty;
-                foreach (var l in Settings.ActiveRaids[RotationCount].PartyPK)
-                    len += l;
-                if (len.Length > 1 && EmptyRaid == 0)
-                {
-                    Log("Preparing PartyPK. Sit tight.");
-                    await Task.Delay(2_500 + settings.ExtraTimeLobbyDisband, token).ConfigureAwait(false);
-                    await SetCurrentBox(0, token).ConfigureAwait(false);
-                    var res = string.Join("\n", Settings.ActiveRaids[RotationCount].PartyPK);
-                    if (res.Length > 4096)
-                        res = res[..4096];
-                    await InjectPartyPk(res, token).ConfigureAwait(false);
-
-                    await Click(X, 2_000, token).ConfigureAwait(false);
-                    await Click(DRIGHT, 0_500, token).ConfigureAwait(false);
-                    await SetStick(SwitchStick.LEFT, 0, -32000, 1_000, token).ConfigureAwait(false);
-                    await SetStick(SwitchStick.LEFT, 0, 0, 0, token).ConfigureAwait(false);
-                    for (int i = 0; i < 2; i++)
-                        await Click(DDOWN, 0_500, token).ConfigureAwait(false);
-                    await Click(A, 3_500, token).ConfigureAwait(false);
-                    await Click(Y, 0_500, token).ConfigureAwait(false);
-                    await Click(DLEFT, 0_800, token).ConfigureAwait(false);
-                    await Click(Y, 0_500, token).ConfigureAwait(false);
-                    for (int i = 0; i < 2; i++)
-                        await Click(B, 1_500, token).ConfigureAwait(false);
-                    Log("PartyPK switch successful.");
-                }
+                Log("Seeds don't match, skipping PartyPK Injection.");
             }
             for (int i = 0; i < 4; i++)
                 await Click(B, 1_000, token).ConfigureAwait(false);
@@ -3116,8 +3112,15 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                             if (raidDeliveryGroupId != -1)
                             {
-                                Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupId;
-                                Log($"Updating Delivery Group ID to {raidDeliveryGroupId}.");
+                                if (Settings.EventSettings.EventsOn)  // Check if EventsOn is true before changing settings
+                                {
+                                    Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupId;
+                                    Log($"Updating Delivery Group ID to {raidDeliveryGroupId}.");
+                                }
+                                else
+                                {
+                                    Log("Events are turned off. Not updating Delivery Group ID.");
+                                }
                             }
                             else
                             {
@@ -3130,7 +3133,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                             var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
                             Log($"Event Raid found! {speciesName} located in {areaText}");
-
 
                             if (Settings.EventSettings.EventsOn)
                             {
