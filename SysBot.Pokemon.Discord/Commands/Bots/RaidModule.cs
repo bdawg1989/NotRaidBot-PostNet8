@@ -681,8 +681,8 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             var userId = Context.User.Id;
             int currentPosition = RotationCount;
 
-            // Find the index of the user's request in the queue
-            var userRequestIndex = Hub.Config.RotatingRaidSV.ActiveRaids.FindIndex(r => r.RequestedByUserID == userId);
+            // Find the index of the user's request in the queue, excluding Mystery Shiny Raids
+            var userRequestIndex = Hub.Config.RotatingRaidSV.ActiveRaids.FindIndex(r => r.RequestedByUserID == userId && !r.Title.Contains("Mystery Shiny Raid"));
 
             EmbedBuilder embed = new EmbedBuilder();
 
@@ -694,19 +694,8 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             }
             else
             {
-                int raidsBeforeUser;
-                // Handle Random Rotation differently
-                if (Hub.Config.RotatingRaidSV.RaidSettings.RandomRotation)
-                {
-                    raidsBeforeUser = CalculateEffectiveQueuePosition(userId, currentPosition);
-                }
-                else
-                {
-                    // Adjust calculation for circular queue
-                    raidsBeforeUser = (userRequestIndex >= currentPosition)
-                        ? userRequestIndex - currentPosition
-                        : Hub.Config.RotatingRaidSV.ActiveRaids.Count - currentPosition + userRequestIndex;
-                }
+                // Calculate the effective position of the user's request in the queue
+                int raidsBeforeUser = CalculateEffectiveQueuePosition(userId, currentPosition);
 
                 if (raidsBeforeUser <= 0)
                 {
@@ -716,8 +705,8 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 }
                 else
                 {
-                    // Calculate ETA
-                    int etaMinutes = raidsBeforeUser * 6;  // Assuming each raid takes 6 minutes
+                    // Calculate ETA assuming each raid takes 6 minutes
+                    int etaMinutes = raidsBeforeUser * 6;
 
                     embed.Title = "Queue Status";
                     embed.Color = Color.Orange;
@@ -734,26 +723,51 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
         private int CalculateEffectiveQueuePosition(ulong userId, int currentPosition)
         {
             int effectivePosition = 0;
+            bool userRequestFound = false;
 
             for (int i = currentPosition; i < Hub.Config.RotatingRaidSV.ActiveRaids.Count + currentPosition; i++)
             {
                 int actualIndex = i % Hub.Config.RotatingRaidSV.ActiveRaids.Count;
                 var raid = Hub.Config.RotatingRaidSV.ActiveRaids[actualIndex];
 
-                if (raid.RequestedByUserID == userId)
+                // Check if the raid is added by the RA command and is not a Mystery Shiny Raid
+                if (raid.AddedByRACommand && !raid.Title.Contains("Mystery Shiny Raid"))
                 {
-                    // Found the user's request
-                    break;
+                    if (raid.RequestedByUserID == userId)
+                    {
+                        // Found the user's request
+                        userRequestFound = true;
+                        break;
+                    }
+                    else if (!userRequestFound)
+                    {
+                        // Count other user requested raids before the user's request
+                        effectivePosition++;
+                    }
                 }
-
-                // Skip counting Mystery Shiny Raids
-                if (raid.Title.Contains("Mystery Shiny Raid"))
-                {
-                    continue;
-                }
-
-                effectivePosition++;
             }
+
+            // If the user's request was not found after the current position, count from the beginning
+            if (!userRequestFound)
+            {
+                for (int i = 0; i < currentPosition; i++)
+                {
+                    var raid = Hub.Config.RotatingRaidSV.ActiveRaids[i];
+                    if (raid.AddedByRACommand && !raid.Title.Contains("Mystery Shiny Raid"))
+                    {
+                        if (raid.RequestedByUserID == userId)
+                        {
+                            // Found the user's request
+                            break;
+                        }
+                        else
+                        {
+                            effectivePosition++;
+                        }
+                    }
+                }
+            }
+
             return effectivePosition;
         }
 
