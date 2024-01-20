@@ -81,8 +81,11 @@ namespace SysBot.Pokemon
             [Category(Hosting), Description("Set to \"true\" when events are active to properly process level 7 (event) and level 5 (distribution) raids.")]
             public bool EventActive { get; set; } = false;
 
-            [Category(Hosting), Description("Event Group ID.  -1 means No Event.")]
-            public int RaidDeliveryGroupID { get; set; } = -1;
+            [Category(Hosting), Description("Mighty Event Group ID.  -1 means No 7 Star Event.")]
+            public int MightyGroupID { get; set; } = -1;
+
+            [Category(Hosting), Description("Distribution Event Group ID.  -1 means No Distribution Event.")]
+            public int DistGroupID { get; set; } = -1;
         }
 
         [Category(Hosting), TypeConverter(typeof(CategoryConverter<RotatingRaidSettingsCategory>))]

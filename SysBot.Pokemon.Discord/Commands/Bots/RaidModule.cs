@@ -70,12 +70,13 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 return;
             }
 
+            var raidDeliveryGroupID = (level == 7) ? settings.EventSettings.MightyGroupID : settings.EventSettings.DistGroupID;  // Use MightyGroupID for 7 star, otherwise use DistGroupID
+            var isEvent = eventType == "Event";
+
             try
             {
                 var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
-                var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
-                var isEvent = eventType == "Event";
                 var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
                 await ReplyAsync(embed: embed);
             }
@@ -328,7 +329,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             }
 
             var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
-            var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
+            var raidDeliveryGroupID = settings.EventSettings.MightyGroupID;
             var rewardsToShow = settings.EmbedToggles.RewardsToShow;
             var (pk, raidEmbed) = RaidInfoCommand(seed, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow);
             var description = string.Empty;
@@ -455,6 +456,9 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 _ => throw new ArgumentException("Invalid difficulty level.")
             };
 
+            // Determine the correct Group ID based on event type
+            var raidDeliveryGroupID = (level == 7) ? settings.EventSettings.MightyGroupID : settings.EventSettings.DistGroupID;
+
             // Check if event type is specified but events are turned off
             if (eventType == "Event" && !settings.EventSettings.EventActive)
             {
@@ -470,7 +474,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             }
             var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
             var rewardsToShow = settings.EmbedToggles.RewardsToShow;
-            var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
             var (pk, raidEmbed) = RaidInfoCommand(seed, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow);
             var description = string.Empty;
             var prevpath = "bodyparam.txt";

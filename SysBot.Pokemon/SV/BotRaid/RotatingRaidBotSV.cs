@@ -3101,25 +3101,50 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (currentProgress == GameProgress.Unlocked5Stars || currentProgress == GameProgress.Unlocked6Stars)
                 {
                     bool eventRaidFoundP = false;
-                    List<int> possibleGroups = GetPossibleGroups(tempContainer);
+                    var (distGroupIDs, mightGroupIDs) = GetPossibleGroups(tempContainer);
+
+                    bool distGroupIDUpdated = false;
+                    bool mightGroupIDUpdated = false;
+                    HashSet<int> loggedSpecies = new HashSet<int>();
 
                     foreach (var raid in tempContainer.Raids)
                     {
                         if (raid.IsEvent)
                         {
-                            eventRaidFoundP = true;
-                            var raidDeliveryGroupId = raid.GetDeliveryGroupID(tempContainer.DeliveryRaidPriority, possibleGroups, 0);
+                            eventRaidFoundP = true; // Mark as found an event raid
+                            bool isDistributionRaid = raid.Flags == 3;
+                            int raidDeliveryGroupId = isDistributionRaid ? distGroupIDs.FirstOrDefault() : mightGroupIDs.FirstOrDefault();
 
                             if (raidDeliveryGroupId != -1)
                             {
                                 if (Settings.EventSettings.EventsOn)  // Check if EventsOn is true before changing settings
                                 {
-                                    Settings.EventSettings.RaidDeliveryGroupID = raidDeliveryGroupId;
-                                    Log($"Updating Delivery Group ID to {raidDeliveryGroupId}.");
+                                    if (isDistributionRaid && !distGroupIDUpdated)
+                                    {
+                                        Settings.EventSettings.DistGroupID = raidDeliveryGroupId;
+                                        distGroupIDUpdated = true;
+                                        Log($"Updating Distribution Event Group ID to {raidDeliveryGroupId}.");
+                                    }
+                                    else if (!isDistributionRaid && !mightGroupIDUpdated)
+                                    {
+                                        Settings.EventSettings.MightyGroupID = raidDeliveryGroupId;
+                                        mightGroupIDUpdated = true;
+                                        Log($"Updating Mighty Event Group ID to {raidDeliveryGroupId}.");
+                                    }
                                 }
                                 else
                                 {
                                     Log("Events are turned off. Not updating Delivery Group ID.");
+                                }
+
+                                // Get the species info
+                                var encounter = raid.GetTeraEncounter(tempContainer, raid.IsEvent ? 3 : StoryProgress, raidDeliveryGroupId);
+                                if (encounter != null && !loggedSpecies.Contains(encounter.Species))
+                                {
+                                    var speciesName = ((Species)encounter.Species).ToString();
+                                    var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
+                                    Log($"Event Raid found! {speciesName} located in {areaText}");
+                                    loggedSpecies.Add(encounter.Species);
                                 }
                             }
                             else
@@ -3127,26 +3152,18 @@ namespace SysBot.Pokemon.SV.BotRaid
                                 Log("Failed to determine a valid Delivery Group ID.");
                             }
 
-                            // Get the species info
-                            var encounter = raid.GetTeraEncounter(tempContainer, raid.IsEvent ? 3 : StoryProgress, raidDeliveryGroupId);
-                            var speciesName = encounter != null ? ((Species)encounter.Species).ToString() : "Unknown";
-
-                            var areaText = $"{Areas.GetArea((int)(raid.Area - 1), raid.MapParent)} - Den {raid.Den}";
-                            Log($"Event Raid found! {speciesName} located in {areaText}");
-
                             if (Settings.EventSettings.EventsOn)
                             {
                                 Settings.EventSettings.EventActive = true;
                                 DisableMysteryRaidsIfEventActive();
                             }
-
-                            break;
                         }
                     }
 
                     if (!eventRaidFoundP)
                     {
-                        Settings.EventSettings.RaidDeliveryGroupID = -1;
+                        Settings.EventSettings.MightyGroupID = -1;
+                        Settings.EventSettings.DistGroupID = -1;
                         if (Settings.EventSettings.EventsOn)
                         {
                             Settings.EventSettings.EventActive = false;
@@ -3206,27 +3223,30 @@ namespace SysBot.Pokemon.SV.BotRaid
             return dataB;
         }
 
-        private List<int> GetPossibleGroups(RaidContainer container)
+        private (List<int> distGroupIDs, List<int> mightGroupIDs) GetPossibleGroups(RaidContainer container)
         {
-            List<int> possibleGroups = new List<int>();
-            if (container.DistTeraRaids is not null)
+            List<int> distGroupIDs = new List<int>();
+            List<int> mightGroupIDs = new List<int>();
+
+            if (container.DistTeraRaids != null)
             {
                 foreach (TeraDistribution e in container.DistTeraRaids)
                 {
-                    if (TeraDistribution.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
-                        possibleGroups.Add(e.DeliveryGroupID);
+                    if (TeraDistribution.AvailableInGame(e.Entity, container.Game) && !distGroupIDs.Contains(e.DeliveryGroupID))
+                        distGroupIDs.Add(e.DeliveryGroupID);
                 }
             }
 
-            if (container.MightTeraRaids is not null)
+            if (container.MightTeraRaids != null)
             {
                 foreach (TeraMight e in container.MightTeraRaids)
                 {
-                    if (TeraMight.AvailableInGame(e.Entity, container.Game) && !possibleGroups.Contains(e.DeliveryGroupID))
-                        possibleGroups.Add(e.DeliveryGroupID);
+                    if (TeraMight.AvailableInGame(e.Entity, container.Game) && !mightGroupIDs.Contains(e.DeliveryGroupID))
+                        mightGroupIDs.Add(e.DeliveryGroupID);
                 }
             }
-            return possibleGroups;
+
+            return (distGroupIDs, mightGroupIDs);
         }
 
         private async Task ProcessAllRaids(CancellationToken token)
@@ -3247,10 +3267,12 @@ namespace SysBot.Pokemon.SV.BotRaid
                 Settings.ActiveRaids[0].Seed = denHexSeed;
             }
 
-            int raid_delivery_group_id = Settings.EventSettings.RaidDeliveryGroupID;
 
             for (int i = 0; i < allRaids.Count; i++)
             {
+                bool isDistributionRaid = allRaids[i].Flags == 3;
+                int raid_delivery_group_id = isDistributionRaid ? Settings.EventSettings.DistGroupID : Settings.EventSettings.MightyGroupID;
+
                 var (pk, seed) = IsSeedReturned(allEncounters[i], allRaids[i]);
 
                 for (int a = 0; a < Settings.ActiveRaids.Count; a++)
