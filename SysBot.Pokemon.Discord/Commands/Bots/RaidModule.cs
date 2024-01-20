@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using MathNet.Numerics;
 using Newtonsoft.Json.Linq;
 using PKHeX.Core;
 using SysBot.Base;
@@ -29,11 +30,10 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
         [Alias("ri", "rv")]
         [Summary("Displays basic Raid Info of the provided seed.")]
         public async Task RaidSeedInfoAsync(
-            string seedValue,
-            int level,
-            int storyProgressLevel = 6,
-            string? eventType = null)  // New optional parameter for specifying event type
-
+    string seedValue,
+    int level,
+    int storyProgressLevel = 6,
+    string? eventType = null)  // New optional parameter for specifying event type
         {
             uint seed;
             try
@@ -56,11 +56,16 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
 
             var settings = Hub.Config.RotatingRaidSV;  // Get RotatingRaidSV settings
 
-            var crystalType = level switch
+            // Adjusted logic to pass contentType of 2 when eventType is "Event"
+            int contentType = eventType == "Event" ? 2 : level switch
             {
-                >= 1 and <= 5 => eventType == "Event" ? (TeraCrystalType)2 : (TeraCrystalType)0,
-                6 => (TeraCrystalType)1,
-                7 => (TeraCrystalType)3,
+                1 => 0, // Non Event Raids
+                2 => 0,
+                3 => 0,
+                4 => 0,
+                5 => 0,
+                6 => 1, // Black6
+                7 => 3, // Mighty 7-Star Raid
                 _ => throw new ArgumentException("Invalid difficulty level.")
             };
 
@@ -77,7 +82,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
                 var raidDeliveryGroupID = settings.EventSettings.RaidDeliveryGroupID;
                 var isEvent = eventType == "Event";
-                var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
+                var (_, embed) = RaidInfoCommand(seedValue, contentType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
                 await ReplyAsync(embed: embed);
             }
             catch (Exception ex)

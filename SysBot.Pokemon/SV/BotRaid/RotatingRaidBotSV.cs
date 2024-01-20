@@ -7,8 +7,6 @@ using SysBot.Pokemon.SV.BotRaid.Helpers;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -21,7 +19,6 @@ using System.Threading.Tasks;
 using static SysBot.Base.SwitchButton;
 using static SysBot.Pokemon.RotatingRaidSettingsSV;
 using static SysBot.Pokemon.SV.BotRaid.Blocks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SysBot.Pokemon.SV.BotRaid
 {
@@ -48,13 +45,11 @@ namespace SysBot.Pokemon.SV.BotRaid
         private int WinCount;
         private int LossCount;
         private int SeedIndexToReplace = -1;
-        public static GameProgress GameProgress;
-        public static bool? currentSpawnsEnabled;
         public int StoryProgress;
         private int EventProgress;
         private int EmptyRaid = 0;
         private int LostRaid = 0;
-        private int FieldID = 0;
+        readonly int FieldID = 0;
         private bool firstRun = true;
         public static int RotationCount { get; set; }
         private ulong TodaySeed;
@@ -69,9 +64,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         private readonly Dictionary<ulong, int> RaidTracker = new();
         private SAV9SV HostSAV = new();
         private DateTime StartTime = DateTime.Now;
-        public static RaidContainer? container;
-        public static bool IsKitakami = false;
-        public static bool IsBlueberry = false;
         private DateTime TimeForRollBackCheck = DateTime.Now;
         private static bool hasSwapped = false;
         private uint originalAreaId;
@@ -81,13 +73,43 @@ namespace SysBot.Pokemon.SV.BotRaid
         private uint denIdIndex0;
         private uint lotteryGroupIdIndex0;
         private uint originalLotteryGroupId;
-        private uint areaIdIndex1;
-        private uint denIdIndex1;
+        readonly uint areaIdIndex1;
+        readonly uint denIdIndex1;
         private string denHexSeed;
-        private bool indicesInitialized = false;
+        readonly bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
         private static int BlueberryDensCount = 0;
         private int InvalidDeliveryGroupCount = 0;
+        private static RaidContainer? _container;
+        public static RaidContainer? Container
+        {
+            get { return _container; }
+            set { _container = value; }
+        }
+        private static bool _isKitakami = false;
+        public static bool IsKitakami
+        {
+            get { return _isKitakami; }
+            set { _isKitakami = value; }
+        }
+        private static bool _isBlueberry = false;
+        public static bool IsBlueberry
+        {
+            get { return _isBlueberry; }
+            set { _isBlueberry = value; }
+        }
+        private static GameProgress _gameProgress;
+        public static GameProgress GameProgress
+        {
+            get { return _gameProgress; }
+            set { _gameProgress = value; }
+        }
+        private static bool? _currentSpawnsEnabled;
+        public static bool? CurrentSpawnsEnabled
+        {
+            get { return _currentSpawnsEnabled; }
+            set { _currentSpawnsEnabled = value; }
+        }
 
         public override async Task MainLoop(CancellationToken token)
         {
@@ -2101,8 +2123,8 @@ for (int i = 0; i < 3; i++)
             {
                 GameProgress = await ReadGameProgress(token).ConfigureAwait(false);
                 Log($"Current Game Progress identified as {GameProgress}.");
-                currentSpawnsEnabled = (bool?)await ReadBlock(RaidDataBlocks.KWildSpawnsEnabled, CancellationToken.None);
-                Log($"Current Overworld Spawn State {currentSpawnsEnabled}.");
+                _currentSpawnsEnabled = (bool?)await ReadBlock(RaidDataBlocks.KWildSpawnsEnabled, CancellationToken.None);
+                Log($"Current Overworld Spawn State {_currentSpawnsEnabled}.");
             }
 
             var nidPointer = new long[] { Offsets.LinkTradePartnerNIDPointer[0], Offsets.LinkTradePartnerNIDPointer[1], Offsets.LinkTradePartnerNIDPointer[2] };
@@ -2615,15 +2637,15 @@ for (int i = 0; i < 3; i++)
                 if (Settings.RaidSettings.DisableOverworldSpawns)
                 {
                     Log("Checking current state of Overworld Spawns.");
-                    if (currentSpawnsEnabled.HasValue)
+                    if (_currentSpawnsEnabled.HasValue)
                     {
-                        Log($"Current Overworld Spawns state: {currentSpawnsEnabled.Value}");
+                        Log($"Current Overworld Spawns state: {_currentSpawnsEnabled.Value}");
 
-                        if (currentSpawnsEnabled.Value)
+                        if (_currentSpawnsEnabled.Value)
                         {
                             Log("Overworld Spawns are enabled, attempting to disable.");
-                            await WriteBlock(false, RaidDataBlocks.KWildSpawnsEnabled, token, currentSpawnsEnabled);
-                            currentSpawnsEnabled = false;
+                            await WriteBlock(false, RaidDataBlocks.KWildSpawnsEnabled, token, _currentSpawnsEnabled);
+                            _currentSpawnsEnabled = false;
                             Log("Overworld Spawns successfully disabled.");
                         }
                         else
@@ -2635,13 +2657,13 @@ for (int i = 0; i < 3; i++)
                 else // When Settings.DisableOverworldSpawns is false, ensure Overworld spawns are enabled
                 {
                     Log("Settings indicate Overworld Spawns should be enabled. Checking current state.");
-                    Log($"Current Overworld Spawns state: {currentSpawnsEnabled.Value}");
+                    Log($"Current Overworld Spawns state: {_currentSpawnsEnabled.Value}");
 
-                    if (!currentSpawnsEnabled.Value)
+                    if (!_currentSpawnsEnabled.Value)
                     {
                         Log("Overworld Spawns are disabled, attempting to enable.");
-                        await WriteBlock(true, RaidDataBlocks.KWildSpawnsEnabled, token, currentSpawnsEnabled);
-                        currentSpawnsEnabled = true;
+                        await WriteBlock(true, RaidDataBlocks.KWildSpawnsEnabled, token, _currentSpawnsEnabled);
+                        _currentSpawnsEnabled = true;
                         Log("Overworld Spawns successfully enabled.");
                     }
                     else
@@ -3011,8 +3033,8 @@ for (int i = 0; i < 3; i++)
                 await LogPlayerLocation(token); // Get seed from current den for processing
             }
             string game = await DetermineGame(token);
-            container = new(game);
-            container.SetGame(game);
+            _container = new(game);
+            _container.SetGame(game);
 
             await SetStoryAndEventProgress(token);
 
@@ -3063,8 +3085,8 @@ for (int i = 0; i < 3; i++)
         private async Task<(List<Raid>, List<ITeraRaid>, List<List<(int, int, int)>>)> ProcessRaids(byte[] data, TeraRaidMapParent mapType, CancellationToken token)
         {
             int delivery, enc;
-            var tempContainer = new RaidContainer(container.Game);
-            tempContainer.SetGame(container.Game);
+            var tempContainer = new RaidContainer(_container.Game);
+            tempContainer.SetGame(_container.Game);
 
             Log("Reading event raid status...");
             // Read event raids into tempContainer
@@ -3361,8 +3383,8 @@ for (int i = 0; i < 3; i++)
             var raid = new Raid(raidbyte, map); // map is -> TeraRaidMapParent.Paldea, .Kitakami, or .Blueberry
             var progress = storyProgressLevel;
             var raid_delivery_group_id = raidDeliveryGroupID;
-            var encounter = raid.GetTeraEncounter(container, raid.IsEvent ? 3 : progress, contentType == 3 ? 1 : raid_delivery_group_id);
-            var reward = encounter.GetRewards(container, raid, 0);
+            var encounter = raid.GetTeraEncounter(_container, raid.IsEvent ? 3 : progress, contentType == 3 ? 1 : raid_delivery_group_id);
+            var reward = encounter.GetRewards(_container, raid, 0);
             var stars = raid.IsEvent ? encounter.Stars : raid.GetStarCount(raid.Difficulty, storyProgressLevel, raid.IsBlack);
             var teraType = raid.GetTeraType(encounter);
             var form = encounter.Form;
