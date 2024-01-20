@@ -3123,13 +3123,13 @@ namespace SysBot.Pokemon.SV.BotRaid
                                     {
                                         Settings.EventSettings.DistGroupID = raidDeliveryGroupId;
                                         distGroupIDUpdated = true;
-                                        Log($"Updating Distribution Event Group ID to {raidDeliveryGroupId}.");
+                                        Log($"Distribution Event found. Setting Group ID to {raidDeliveryGroupId}.");
                                     }
                                     else if (!isDistributionRaid && !mightGroupIDUpdated)
                                     {
                                         Settings.EventSettings.MightyGroupID = raidDeliveryGroupId;
                                         mightGroupIDUpdated = true;
-                                        Log($"Updating Mighty Event Group ID to {raidDeliveryGroupId}.");
+                                        Log($"Mighty Event found.  Setting Group ID to {raidDeliveryGroupId}.");
                                     }
                                 }
                                 else
