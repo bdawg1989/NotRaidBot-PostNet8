@@ -2352,7 +2352,7 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                 if (Settings.EmbedToggles.IncludeSeed)
                 {
-                    statsField.AppendLine($"**Seed**: `{Settings.ActiveRaids[RotationCount].Seed}`");
+                    statsField.AppendLine($"**Seed**: `{Settings.ActiveRaids[RotationCount].RequestCommand}`");
                 }
 
                 embed.AddField("**__Stats__**", statsField.ToString(), true);
