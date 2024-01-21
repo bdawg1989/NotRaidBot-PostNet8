@@ -532,9 +532,33 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 RotationCount++;
             }
 
-            await Context.Message.DeleteAsync().ConfigureAwait(false);
-            var msg = $"{Context.User.Mention}, added your raid to the queue! I'll DM you when it's about to start.";
-            await ReplyAsync(msg, embed: raidEmbed).ConfigureAwait(false);
+            // Calculate the user's position in the queue and the estimated wait time
+            int effectiveQueuePosition = CalculateEffectiveQueuePosition(Context.User.Id, RotationCount);
+            int etaMinutes = effectiveQueuePosition * 6; 
+
+            var queuePositionMessage = effectiveQueuePosition > 0
+                ? $"You are currently {effectiveQueuePosition} in the queue with an estimated wait time of {etaMinutes} minutes."
+                : "Your raid request is up next!";
+
+            var replyMsg = $"{Context.User.Mention}, added your raid to the queue! I'll DM you when it's about to start.";
+            await ReplyAsync(replyMsg, embed: raidEmbed).ConfigureAwait(false);
+
+            try
+            {
+                var user = Context.User as SocketGuildUser;
+                if (user != null)
+                {
+                    await user.SendMessageAsync($"Here's your raid information:\n{queuePositionMessage}", false, raidEmbed).ConfigureAwait(false);
+                }
+                else
+                {
+                    await ReplyAsync("Failed to send DM. Please make sure your DMs are open.").ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                await ReplyAsync("Failed to send DM. Please make sure your DMs are open.").ConfigureAwait(false);
+            }
         }
 
         public GameProgress ConvertToGameProgress(int storyProgressLevel)
