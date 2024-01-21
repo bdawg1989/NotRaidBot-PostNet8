@@ -26,7 +26,7 @@ namespace SysBot.Pokemon.SV.BotRaid.Helpers
             {
                 // Handle any errors that occur during reading or parsing the file
                 Console.WriteLine($"Error reading config file: {ex.Message}");
-                return "!"; // Default prefix if error occurs
+                return ""; // Default prefix if error occurs
             }
         }
     }
