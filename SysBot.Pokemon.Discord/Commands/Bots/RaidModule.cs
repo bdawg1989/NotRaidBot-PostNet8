@@ -380,7 +380,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             [Summary("Story Progress Level")] int storyProgressLevel = 6,
             [Summary("Event (Optional)")] string? eventType = null)  // New argument for specifying an event
         {
-
+            var botPrefix = SysCord<T>.Runner.Config.Discord.CommandPrefix;
             // Check if raid requests are disabled by the host
             if (Hub.Config.RotatingRaidSV.RaidSettings.DisableRequests)
             {
@@ -506,7 +506,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 IsCoded = true,
                 IsShiny = pk.IsShiny,
                 AddedByRACommand = true,
-                RequestCommand = $"{seed} {level} {storyProgressLevel}{(eventType != null ? $" {eventType}" : "")}",
+                RequestCommand = $"{botPrefix}ra {seed} {level} {storyProgressLevel}{(eventType != null ? $" {eventType}" : "")}",
                 RequestedByUserID = Context.User.Id,
                 Title = $"{Context.User.Username}'s Requested Raid{(eventType == "Event" ? " (Event Raid)" : "")}",
                 RaidUpNext = false,

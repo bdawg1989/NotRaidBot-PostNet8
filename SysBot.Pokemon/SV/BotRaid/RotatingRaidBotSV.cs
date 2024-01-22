@@ -2353,8 +2353,8 @@ namespace SysBot.Pokemon.SV.BotRaid
                 if (Settings.EmbedToggles.IncludeSeed)
                 {
                     var raid = Settings.ActiveRaids[RotationCount];
-                    var commandOrSeed = string.IsNullOrEmpty(raid.RequestCommand) ? raid.Seed : raid.RequestCommand;
-                    statsField.AppendLine($"**Seed**: `{commandOrSeed}`");
+                    var StoryProgressLevel = Settings.ActiveRaids[RotationCount].Seed + 1;
+                    statsField.AppendLine($"**Seed**: `{Settings.ActiveRaids[RotationCount].Seed} {Settings.ActiveRaids[RotationCount].DifficultyLevel} {Settings.ActiveRaids[RotationCount].StoryProgressLevel}`");
                 }
 
                 embed.AddField("**__Stats__**", statsField.ToString(), true);
