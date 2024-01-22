@@ -549,7 +549,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var user = Context.User as SocketGuildUser;
                 if (user != null)
                 {
-                    await user.SendMessageAsync($"Here's your raid information:\n{queuePositionMessage}\nYour request command: `{newparam.RequestCommand}", false, raidEmbed).ConfigureAwait(false);
+                    await user.SendMessageAsync($"Here's your raid information:\n{queuePositionMessage}\nYour request command: `{newparam.RequestCommand}`", false, raidEmbed).ConfigureAwait(false);
                 }
                 else
                 {
