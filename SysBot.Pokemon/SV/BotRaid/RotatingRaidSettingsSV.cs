@@ -65,6 +65,8 @@ namespace SysBot.Pokemon
             [Browsable(false)]
             public bool RaidUpNext { get; set; } = false;
             [Browsable(false)]
+            public string RequestCommand { get; set; } = string.Empty;
+            [Browsable(false)]
             public ulong RequestedByUserID { get; set; } // Add this line for User ID
             [Browsable(false)]
             [System.Text.Json.Serialization.JsonIgnore]
