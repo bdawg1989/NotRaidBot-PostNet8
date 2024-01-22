@@ -493,7 +493,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             if (File.Exists(pkpath))
                 data = File.ReadAllText(pkpath);
 
-            string botPrefix = NotRaidBot.GetBotPrefixFromJsonConfig();
             RotatingRaidParameters newparam = new()
             {
                 CrystalType = crystalType,
@@ -507,7 +506,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 IsCoded = true,
                 IsShiny = pk.IsShiny,
                 AddedByRACommand = true,
-                RequestCommand = $"{botPrefix}ra {seed} {level} {storyProgressLevel}{(eventType != null ? $" {eventType}" : "")}",
+                RequestCommand = $"{seed} {level} {storyProgressLevel}{(eventType != null ? $" {eventType}" : "")}",
                 RequestedByUserID = Context.User.Id,
                 Title = $"{Context.User.Username}'s Requested Raid{(eventType == "Event" ? " (Event Raid)" : "")}",
                 RaidUpNext = false,

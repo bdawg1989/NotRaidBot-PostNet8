@@ -1148,7 +1148,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 _ => throw new ArgumentException("Invalid difficulty level.")
             };
 
-            string botPrefix = NotRaidBot.GetBotPrefixFromJsonConfig();
             RotatingRaidParameters newRandomShinyRaid = new RotatingRaidParameters
             {
                 Seed = randomSeed.ToString("X8"),
@@ -1157,7 +1156,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 AddedByRACommand = true,
                 DifficultyLevel = randomDifficultyLevel,
                 StoryProgressLevel = (int)gameProgress,
-                RequestCommand = $"{botPrefix}ra {randomSeed:X8} {randomDifficultyLevel} {(int)gameProgress}",
+                RequestCommand = $"{randomSeed:X8} {randomDifficultyLevel} {(int)gameProgress}",
                 CrystalType = crystalType,
                 IsShiny = true
             };
