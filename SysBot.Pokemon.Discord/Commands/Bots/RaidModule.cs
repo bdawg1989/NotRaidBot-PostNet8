@@ -506,7 +506,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 IsCoded = true,
                 IsShiny = pk.IsShiny,
                 AddedByRACommand = true,
-                RequestCommand = $"{seed} {level} {storyProgressLevel}{(eventType != null ? $" {eventType}" : "")}",
                 RequestedByUserID = Context.User.Id,
                 Title = $"{Context.User.Username}'s Requested Raid{(eventType == "Event" ? " (Event Raid)" : "")}",
                 RaidUpNext = false,
@@ -549,7 +548,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var user = Context.User as SocketGuildUser;
                 if (user != null)
                 {
-                    await user.SendMessageAsync($"Here's your raid information:\n{queuePositionMessage}\n\nYour request command: `{newparam.RequestCommand}`", false, raidEmbed).ConfigureAwait(false);
+                    await user.SendMessageAsync($"Here's your raid information:\n{queuePositionMessage}", false, raidEmbed).ConfigureAwait(false);
                 }
                 else
                 {

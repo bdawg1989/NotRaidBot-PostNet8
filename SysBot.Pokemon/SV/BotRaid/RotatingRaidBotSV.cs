@@ -1156,7 +1156,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 AddedByRACommand = true,
                 DifficultyLevel = randomDifficultyLevel,
                 StoryProgressLevel = (int)gameProgress,
-                RequestCommand = $"{randomSeed:X8} {randomDifficultyLevel} {(int)gameProgress}",
                 CrystalType = crystalType,
                 IsShiny = true
             };
@@ -2352,9 +2351,9 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                 if (Settings.EmbedToggles.IncludeSeed)
                 {
-                    var raid = Settings.ActiveRaids[RotationCount];
-                    var commandOrSeed = string.IsNullOrEmpty(raid.RequestCommand) ? raid.Seed : raid.RequestCommand;
-                    statsField.AppendLine($"**Seed**: `{commandOrSeed}`");
+                    // Increment StoryProgressLevel by 1
+                    int incrementedStoryProgressLevel = Settings.ActiveRaids[RotationCount].StoryProgressLevel + 1;
+                    statsField.AppendLine($"**Seed**: `{Settings.ActiveRaids[RotationCount].Seed} {Settings.ActiveRaids[RotationCount].DifficultyLevel} {incrementedStoryProgressLevel}`");
                 }
 
                 embed.AddField("**__Stats__**", statsField.ToString(), true);
