@@ -24,7 +24,7 @@ public class ReactionService
     {
         _reactionActions[messageId] = handler;
 
-        var timer = new Timer(600000); // 600000 milliseconds = 10 minutes
+        var timer = new Timer(120000); // 2 minutes
         timer.Elapsed += (sender, args) => RemoveReactionHandler(messageId);
         timer.AutoReset = false; // Trigger only once
         timer.Start();
