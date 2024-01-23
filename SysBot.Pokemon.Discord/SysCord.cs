@@ -57,7 +57,7 @@ namespace SysBot.Pokemon.Discord
                                 GatewayIntents.DirectMessages |
                                 GatewayIntents.GuildMembers |
                                 GatewayIntents.MessageContent |
-                                GatewayIntents.GuildMessageReactions, // Add this line
+                                GatewayIntents.GuildMessageReactions,
                 MessageCacheSize = 100,
                 AlwaysDownloadUsers = true,
             });

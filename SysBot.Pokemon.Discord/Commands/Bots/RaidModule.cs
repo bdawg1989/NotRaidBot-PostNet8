@@ -32,8 +32,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             string seedValue,
             int level,
             int storyProgressLevel = 6,
-            string? eventType = null)  // New optional parameter for specifying event type
-
+            string? eventType = null) 
         {
             uint seed;
             try
@@ -80,22 +79,18 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
                 var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
 
-                var message = await ReplyAsync(embed: embed); // Send the embed and store the message
+                await ReplyAsync("React with ✅ to add the raid to the queue.");
+                var message = await ReplyAsync(embed: embed); 
 
-                // Add green checkmark reaction
                 var checkmarkEmoji = new Emoji("✅");
                 await message.AddReactionAsync(checkmarkEmoji);
 
-                // Add reaction handler to ReactionService
                 SysCord<T>.ReactionService.AddReactionHandler(message.Id, async (reaction) =>
                 {
                     if (reaction.UserId == Context.User.Id && reaction.Emote.Name == checkmarkEmoji.Name)
                     {
-                        // Execute desired logic when the correct reaction is added by the command issuer
-                        // For example, handle it as 'ra' command
                         await AddNewRaidParamNext(seedValue, level, storyProgressLevel, eventType);
 
-                        // Remove the reaction handler to prevent memory leaks
                         SysCord<T>.ReactionService.RemoveReactionHandler(reaction.MessageId);
                     }
                 });
