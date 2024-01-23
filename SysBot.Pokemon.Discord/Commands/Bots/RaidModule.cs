@@ -86,23 +86,25 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var checkmarkEmoji = new Emoji("✅");
                 await message.AddReactionAsync(checkmarkEmoji);
 
-                SysCord<T>.ReactionService.AddReactionHandler(message.Id, async (reaction) =>
+                ulong messageId = message.Id;
+                SysCord<T>.ReactionService.AddReactionHandler(messageId, async (reaction) =>
                 {
                     if (reaction.UserId == Context.User.Id && reaction.Emote.Name == checkmarkEmoji.Name)
                     {
                         await AddNewRaidParamNext(seedValue, level, storyProgressLevel, eventType);
 
-                        SysCord<T>.ReactionService.RemoveReactionHandler(reaction.MessageId);
+                        // Remove the reaction handler immediately after processing the reaction
+                        SysCord<T>.ReactionService.RemoveReactionHandler(messageId);
                     }
                 });
 
                 // Wait for 1 minute
                 await Task.Delay(TimeSpan.FromMinutes(1));
 
-                // Remove the command, reaction, and embed
-                await Context.Message.DeleteAsync(); // Deletes the command message
-                await message.DeleteAsync(); // Deletes the embed message
+                // Clean up
+                SysCord<T>.ReactionService.RemoveReactionHandler(messageId); // Ensure the handler is removed
                 await infoMessage.DeleteAsync(); // Deletes the info message
+                await message.DeleteAsync(); // Deletes the embed message
             }
             catch (Exception ex)
             {
