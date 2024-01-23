@@ -34,6 +34,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             int storyProgressLevel = 6,
             string? eventType = null) 
         {
+            await Context.Message.DeleteAsync();
             uint seed;
             try
             {
@@ -395,6 +396,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             [Summary("Story Progress Level")] int storyProgressLevel = 6,
             [Summary("Event (Optional)")] string? eventType = null)  // New argument for specifying an event
         {
+            await Context.Message.DeleteAsync();
             var botPrefix = SysCord<T>.Runner.Config.Discord.CommandPrefix;
             // Check if raid requests are disabled by the host
             if (Hub.Config.RotatingRaidSV.RaidSettings.DisableRequests)
