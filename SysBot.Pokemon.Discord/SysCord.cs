@@ -26,6 +26,8 @@ namespace SysBot.Pokemon.Discord
         public static PokeBotRunner<T> Runner { get; private set; } = default!;
         public static RestApplication App { get; private set; } = default!;
 
+        public static SysCord<T> Instance { get; private set; }
+        public static ReactionService ReactionService { get; private set; }
         private readonly DiscordSocketClient _client;
         private readonly DiscordManager Manager;
         public readonly PokeRaidHub<T> Hub;
@@ -49,12 +51,13 @@ namespace SysBot.Pokemon.Discord
 
             _client = new DiscordSocketClient(new DiscordSocketConfig
             {
-                // How much logging do you want to see?
                 LogLevel = LogSeverity.Info,
-                GatewayIntents = Guilds | GuildMessages | DirectMessages | GuildMembers | MessageContent,
-                // If you or another service needs to do anything with messages
-                // (eg. checking Reactions, checking the content of edited/deleted messages),
-                // you must set the MessageCacheSize. You may adjust the number as needed.
+                GatewayIntents = GatewayIntents.Guilds |
+                                GatewayIntents.GuildMessages |
+                                GatewayIntents.DirectMessages |
+                                GatewayIntents.GuildMembers |
+                                GatewayIntents.MessageContent |
+                                GatewayIntents.GuildMessageReactions, // Add this line
                 MessageCacheSize = 100,
                 AlwaysDownloadUsers = true,
             });
@@ -79,6 +82,13 @@ namespace SysBot.Pokemon.Discord
 
             // Setup your DI container.
             _services = ConfigureServices();
+            Instance = this;
+            ReactionService = new ReactionService(_client);
+        }
+
+        public DiscordSocketClient GetClient()
+        {
+            return _client;
         }
 
         // If any services require the client, or the CommandService, or something else you keep on hand,

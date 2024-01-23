@@ -23,6 +23,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
     public class RaidModule<T> : ModuleBase<SocketCommandContext> where T : PKM, new()
     {
         private readonly PokeRaidHub<T> Hub = SysCord<T>.Runner.Hub;
+        private DiscordSocketClient _client => SysCord<T>.Instance.GetClient();
 
         [Command("raidinfo")]
         [Alias("ri", "rv")]
@@ -78,7 +79,26 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
                 var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
-                await ReplyAsync(embed: embed);
+
+                var message = await ReplyAsync(embed: embed); // Send the embed and store the message
+
+                // Add green checkmark reaction
+                var checkmarkEmoji = new Emoji("✅");
+                await message.AddReactionAsync(checkmarkEmoji);
+
+                // Add reaction handler to ReactionService
+                SysCord<T>.ReactionService.AddReactionHandler(message.Id, async (reaction) =>
+                {
+                    if (reaction.UserId == Context.User.Id && reaction.Emote.Name == checkmarkEmoji.Name)
+                    {
+                        // Execute desired logic when the correct reaction is added by the command issuer
+                        // For example, handle it as 'ra' command
+                        await AddNewRaidParamNext(seedValue, level, storyProgressLevel, eventType);
+
+                        // Remove the reaction handler to prevent memory leaks
+                        SysCord<T>.ReactionService.RemoveReactionHandler(reaction.MessageId);
+                    }
+                });
             }
             catch (Exception ex)
             {
