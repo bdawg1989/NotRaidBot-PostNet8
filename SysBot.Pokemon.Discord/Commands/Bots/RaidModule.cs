@@ -32,9 +32,9 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             string seedValue,
             int level,
             int storyProgressLevel = 6,
-            string? eventType = null) 
+            string? eventType = null)  // New optional parameter for specifying event type
+
         {
-            await Context.Message.DeleteAsync();
             uint seed;
             try
             {
@@ -80,8 +80,8 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
                 var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
 
-                await ReplyAsync("React with ✅ to add the raid to the queue.");
-                var message = await ReplyAsync(embed: embed); 
+                var infoMessage = await ReplyAsync("React with ✅ to add the raid to the queue.");
+                var message = await ReplyAsync(embed: embed);
 
                 var checkmarkEmoji = new Emoji("✅");
                 await message.AddReactionAsync(checkmarkEmoji);
@@ -95,6 +95,14 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                         SysCord<T>.ReactionService.RemoveReactionHandler(reaction.MessageId);
                     }
                 });
+
+                // Wait for 1 minute
+                await Task.Delay(TimeSpan.FromMinutes(1));
+
+                // Remove the command, reaction, and embed
+                await Context.Message.DeleteAsync(); // Deletes the command message
+                await message.DeleteAsync(); // Deletes the embed message
+                await infoMessage.DeleteAsync(); // Deletes the info message
             }
             catch (Exception ex)
             {
@@ -396,7 +404,6 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             [Summary("Story Progress Level")] int storyProgressLevel = 6,
             [Summary("Event (Optional)")] string? eventType = null)  // New argument for specifying an event
         {
-            await Context.Message.DeleteAsync();
             var botPrefix = SysCord<T>.Runner.Config.Discord.CommandPrefix;
             // Check if raid requests are disabled by the host
             if (Hub.Config.RotatingRaidSV.RaidSettings.DisableRequests)
@@ -552,7 +559,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
 
             // Calculate the user's position in the queue and the estimated wait time
             int effectiveQueuePosition = CalculateEffectiveQueuePosition(Context.User.Id, RotationCount);
-            int etaMinutes = effectiveQueuePosition * 6; 
+            int etaMinutes = effectiveQueuePosition * 6;
 
             var queuePositionMessage = effectiveQueuePosition > 0
                 ? $"You are currently {effectiveQueuePosition} in the queue with an estimated wait time of {etaMinutes} minutes."
