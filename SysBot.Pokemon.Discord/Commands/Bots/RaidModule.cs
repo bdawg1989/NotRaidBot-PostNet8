@@ -32,8 +32,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             string seedValue,
             int level,
             int storyProgressLevel = 6,
-            string? eventType = null)  // New optional parameter for specifying event type
-
+            string? eventType = null)
         {
             uint seed;
             try
@@ -80,31 +79,32 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
                 var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
 
-                var infoMessage = await ReplyAsync("React with ✅ to add the raid to the queue.");
+                var instructionMessage = await ReplyAsync("React with ✅ to add the raid to the queue.");
                 var message = await ReplyAsync(embed: embed);
-
                 var checkmarkEmoji = new Emoji("✅");
                 await message.AddReactionAsync(checkmarkEmoji);
 
-                ulong messageId = message.Id;
-                SysCord<T>.ReactionService.AddReactionHandler(messageId, async (reaction) =>
+                SysCord<T>.ReactionService.AddReactionHandler(message.Id, async (reaction) =>
                 {
                     if (reaction.UserId == Context.User.Id && reaction.Emote.Name == checkmarkEmoji.Name)
                     {
                         await AddNewRaidParamNext(seedValue, level, storyProgressLevel, eventType);
 
-                        // Remove the reaction handler immediately after processing the reaction
-                        SysCord<T>.ReactionService.RemoveReactionHandler(messageId);
+                        SysCord<T>.ReactionService.RemoveReactionHandler(reaction.MessageId);
                     }
                 });
+                _ = Task.Run(async () =>
+                {
+                    // Delay for 1 minute
+                    await Task.Delay(TimeSpan.FromMinutes(1));
 
-                // Wait for 1 minute
-                await Task.Delay(TimeSpan.FromMinutes(1));
+                    // Remove the reaction handler
+                    SysCord<T>.ReactionService.RemoveReactionHandler(message.Id);
 
-                // Clean up
-                SysCord<T>.ReactionService.RemoveReactionHandler(messageId); // Ensure the handler is removed
-                await infoMessage.DeleteAsync(); // Deletes the info message
-                await message.DeleteAsync(); // Deletes the embed message
+                    // Delete the messages
+                    await message.DeleteAsync();
+                    await instructionMessage.DeleteAsync();
+                });
             }
             catch (Exception ex)
             {
