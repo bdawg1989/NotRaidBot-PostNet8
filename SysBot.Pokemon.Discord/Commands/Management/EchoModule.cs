@@ -142,13 +142,13 @@ namespace SysBot.Pokemon.Discord
             // Define a list of available thumbnail URLs
             var thumbnailOptions = new List<string>
     {
-        "https://genpkm.com/images/gengarmegaphone.png",
-        "https://genpkm.com/images/pikachumegaphone.png",
-        "https://genpkm.com/images/umbreonmegaphone.png",
-        "https://genpkm.com/images/sylveonmegaphone.png",
-        "https://genpkm.com/images/charmandermegaphone.png",
-        "https://genpkm.com/images/jigglypuffmegaphone.png",
-        "https://genpkm.com/images/flareonmegaphone.png",
+        "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/gengarmegaphone.png",
+        "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/pikachumegaphone.png",
+        "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/umbreonmegaphone.png",
+        "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/sylveonmegaphone.png",
+        "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/charmandermegaphone.png",
+        "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/jigglypuffmegaphone.png",
+        "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/flareonmegaphone.png",
     };
 
             // Generate a random index and return the corresponding URL
@@ -174,21 +174,21 @@ namespace SysBot.Pokemon.Discord
             switch (option)
             {
                 case ThumbnailOption.Gengar:
-                    return "https://genpkm.com/images/gengarmegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/gengarmegaphone.png";
                 case ThumbnailOption.Pikachu:
-                    return "https://genpkm.com/images/pikachumegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/pikachumegaphone.png";
                 case ThumbnailOption.Umbreon:
-                    return "https://genpkm.com/images/umbreonmegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/umbreonmegaphone.png";
                 case ThumbnailOption.Sylveon:
-                    return "https://genpkm.com/images/sylveonmegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/sylveonmegaphone.png";
                 case ThumbnailOption.Charmander:
-                    return "https://genpkm.com/images/charmandermegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/charmandermegaphone.png";
                 case ThumbnailOption.Jigglypuff:
-                    return "https://genpkm.com/images/jigglypuffmegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/jigglypuffmegaphone.png";
                 case ThumbnailOption.Flareon:
-                    return "https://genpkm.com/images/flareonmegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/flareonmegaphone.png";
                 default:
-                    return "https://genpkm.com/images/gengarmegaphone.png";
+                    return "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/gengarmegaphone.png";
             }
         }
 

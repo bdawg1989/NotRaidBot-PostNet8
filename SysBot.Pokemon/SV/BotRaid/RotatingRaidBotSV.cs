@@ -2259,7 +2259,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
 
             if (Settings.ActiveRaids[RotationCount].Species is 0)
-                turl = "https://genpkm.com/images/combat.png";
+                turl = "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/combat.png";
 
             // Fetch the dominant color from the image only AFTER turl is assigned
             (int R, int G, int B) dominantColor = RaidExtensions<PK9>.GetDominantColor(turl);
@@ -2290,7 +2290,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Only include footer if not posting 'upnext' embed with the 'Preparing Raid' title
             if (!(upnext && Settings.RaidSettings.TotalRaidsToHost == 0))
             {
-                string programIconUrl = $"https://genpkm.com/images/icon4.png";
+                string programIconUrl = $"https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/icon4.png";
                 int raidsInRotationCount = Hub.Config.RotatingRaidSV.ActiveRaids.Count(r => !r.AddedByRACommand);
                 // Calculate uptime
                 TimeSpan uptime = DateTime.Now - StartTime;
@@ -2327,7 +2327,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             // Prepare the tera icon URL
             string teraType = RaidEmbedInfo.RaidSpeciesTeraType.ToLower();
             string folderName = Settings.EmbedToggles.SelectedTeraIconType == TeraIconType.Icon1 ? "icon1" : "icon2"; // Add more conditions for more icon types
-            string teraIconUrl = $"https://genpkm.com/images/teraicons/{folderName}/{teraType}.png";
+            string teraIconUrl = $"https://raw.githubusercontent.com/bdawg1989/sprites/main/teraicons/{folderName}/{teraType}.png";
 
             // Only include author (header) if not posting 'upnext' embed with the 'Preparing Raid' title
             if (!(upnext && Settings.RaidSettings.TotalRaidsToHost == 0))
@@ -2444,7 +2444,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                             Title = "Experiencing Technical Difficulties",
                             Description = "The bot is experiencing issues connecting online. Please stand by as we try to resolve the issue.",
                             Color = Color.Red,
-                            ThumbnailUrl = "https://genpkm.com/images/x.png"
+                            ThumbnailUrl = "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/x.png"
                         };
                         EchoUtil.RaidEmbed(null, "", embed);
                         // Waiting process
@@ -3476,7 +3476,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 specialRewards = "No valid rewards to display";
             }
             var teraTypeLower = strings.Types[teraType].ToLower();
-            var teraIconUrl = $"https://genpkm.com/images/teraicons/icon1/{teraTypeLower}.png";
+            var teraIconUrl = $"https://raw.githubusercontent.com/bdawg1989/sprites/main/teraicons/icon1/{teraTypeLower}.png";
             var disclaimer = $"NotRaidBot {NotRaidBot.Version} by Gengar & Kai\nhttps://notpaldea.net";
             var titlePrefix = raid.IsShiny ? "Shiny " : "";
             var formName = ShowdownParsing.GetStringFromForm(pk.Form, strings, pk.Species, pk.Context);
@@ -3520,7 +3520,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 embed.AddField("**__Special Rewards__**", "No special rewards available", true);
             }
 
-            var programIconUrl = "https://genpkm.com/images/icon4.png";
+            var programIconUrl = "https://raw.githubusercontent.com/bdawg1989/sprites/main/imgs/icon4.png";
             embed.WithFooter(new EmbedFooterBuilder()
             {
                 Text = $"" + disclaimer,
