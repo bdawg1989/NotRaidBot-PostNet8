@@ -110,6 +110,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             {
                 await ReplyAsync(ex.Message);
             }
+            await Context.Message.DeleteAsync().ConfigureAwait(false);
         }
 
         [Command("banOT")]
