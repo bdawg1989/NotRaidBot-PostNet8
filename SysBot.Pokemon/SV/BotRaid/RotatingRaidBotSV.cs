@@ -3004,7 +3004,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                 GameProgress currentProgress = (GameProgress)StoryProgress;
                 if (currentProgress == GameProgress.Unlocked5Stars || currentProgress == GameProgress.Unlocked6Stars)
                 {
-                    bool eventRaidFoundP = false;
                     var (distGroupIDs, mightGroupIDs) = GetPossibleGroups(tempContainer);
 
                     bool distGroupIDUpdated = false;
@@ -3015,7 +3014,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                     {
                         if (raid.IsEvent)
                         {
-                            eventRaidFoundP = true; // Mark as found an event raid
                             bool isDistributionRaid = raid.Flags == 2; // Flag 2 for Distribution
                             bool isMightyRaid = raid.Flags == 3;       // Flag 3 for Mighty
                             int raidDeliveryGroupId = isDistributionRaid ? distGroupIDs.FirstOrDefault() : mightGroupIDs.FirstOrDefault();
@@ -3062,16 +3060,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                                 Settings.EventSettings.EventActive = true;
                                 DisableMysteryRaidsIfEventActive();
                             }
-                        }
-                    }
-
-                    if (!eventRaidFoundP)
-                    {
-                        if (Settings.EventSettings.AutoDetectEvents)
-                        {
-                            Settings.EventSettings.EventActive = false;
-                            Settings.EventSettings.MightyGroupID = -1;
-                            Settings.EventSettings.DistGroupID = -1;
                         }
                     }
                 }
