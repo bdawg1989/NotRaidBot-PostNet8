@@ -991,9 +991,21 @@ namespace SysBot.Pokemon.SV.BotRaid
             var crystalType = Settings.ActiveRaids[RotationCount].CrystalType;
             var seed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
 
+            // Save the current index before changing
+            int currentIndex = index;
+
             // Check if the crystal type is either Mighty or Distribution
             if (crystalType == TeraCrystalType.Might || crystalType == TeraCrystalType.Distribution)
             {
+                // Set seed of the previous index to "000118C8" before changing the index
+                if (currentIndex != -1)
+                {
+                    uint defaultSeed = uint.Parse("000118C8", NumberStyles.AllowHexSpecifier);
+                    List<long> prevPtr = DeterminePointer(currentIndex);
+                    byte[] defaultSeedBytes = BitConverter.GetBytes(defaultSeed);
+                    await SwitchConnection.PointerPoke(defaultSeedBytes, prevPtr, token).ConfigureAwait(false);
+                }
+
                 Log(crystalType == TeraCrystalType.Might ? "Preparing 7 Star Event Raid..." : "Preparing Distribution Raid...");
 
                 index = crystalType == TeraCrystalType.Might ? 0 : 1;
@@ -3163,24 +3175,8 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             for (int i = 0; i < allRaids.Count; i++)
             {
-                // Correctly identify the raid type based on the Flags value
-                bool isDistributionRaid = allRaids[i].Flags == 2; // Distribution Raid
-                bool isMightyRaid = allRaids[i].Flags == 3;       // Mighty Raid
-
-                // Set the raid_delivery_group_id based on the raid type
-                int raid_delivery_group_id;
-                if (isDistributionRaid)
-                {
-                    raid_delivery_group_id = Settings.EventSettings.DistGroupID;
-                }
-                else if (isMightyRaid)
-                {
-                    raid_delivery_group_id = Settings.EventSettings.MightyGroupID;
-                }
-                else
-                {
-                    continue; // Skip non-event raids or handle them as needed
-                }
+                bool isDistributionRaid = allRaids[i].Flags == 2;
+                int raid_delivery_group_id = isDistributionRaid ? Settings.EventSettings.DistGroupID : Settings.EventSettings.MightyGroupID;
 
                 var (pk, seed) = IsSeedReturned(allEncounters[i], allRaids[i]);
 
