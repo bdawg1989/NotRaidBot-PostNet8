@@ -70,17 +70,6 @@ namespace SysBot.Pokemon.SV.BotRaid
         public static bool IsKitakami = false;
         public static bool IsBlueberry = false;
         private DateTime TimeForRollBackCheck = DateTime.Now;
-        private static bool hasSwapped = false;
-        private uint originalAreaId;
-        private uint originalDenId;
-        private bool originalIdsSet = false;
-        private uint areaIdIndex0;
-        private uint denIdIndex0;
-        private uint lotteryGroupIdIndex0;
-        private uint originalLotteryGroupId;
-        private uint areaIdIndex1;
-        private uint denIdIndex1;
-        private uint lotteryGroupIdIndex1;
         private string denHexSeed;
         private bool indicesInitialized = false;
         private static int KitakamiDensCount = 0;
@@ -999,20 +988,23 @@ namespace SysBot.Pokemon.SV.BotRaid
             if (index == -1)
                 return;
 
-            List<long> ptr = DeterminePointer(index); // Using DeterminePointer
-
             var crystalType = Settings.ActiveRaids[RotationCount].CrystalType;
             var seed = uint.Parse(Settings.ActiveRaids[RotationCount].Seed, NumberStyles.AllowHexSpecifier);
 
+            // Check if the crystal type is either Mighty or Distribution
             if (crystalType == TeraCrystalType.Might || crystalType == TeraCrystalType.Distribution)
             {
                 Log(crystalType == TeraCrystalType.Might ? "Preparing 7 Star Event Raid..." : "Preparing Distribution Raid...");
+
+                index = crystalType == TeraCrystalType.Might ? 0 : 1;
+
+                List<long> ptr = DeterminePointer(index);
 
                 // Overriding the seed
                 byte[] seedBytes = BitConverter.GetBytes(seed);
                 await SwitchConnection.PointerPoke(seedBytes, ptr, token).ConfigureAwait(false);
 
-                // Adjust the pointer for the crystal type depending on the raid type
+                // Adjust the pointer for the crystal type
                 var crystalPtr = new List<long>(ptr);
                 crystalPtr[3] += 0x08;
 
@@ -1020,22 +1012,29 @@ namespace SysBot.Pokemon.SV.BotRaid
                 await SwitchConnection.PointerPoke(crystalBytes, crystalPtr, token).ConfigureAwait(false);
                 await Task.Delay(1_500, token).ConfigureAwait(false);
 
-                string raidType = crystalType == TeraCrystalType.Might ? "Might" : "Distribution";
-                await SwapRaidLocationsAsync(index, raidType, token).ConfigureAwait(false);
-                await Task.Delay(1_500, token).ConfigureAwait(false);
-                await SyncSeedToIndex(index, raidType, token).ConfigureAwait(false);
+                // Get the list of active raids
+                var activeRaids = await GetActiveRaidLocations(TeraRaidMapParent.Paldea, token);
+
+                // Get the player's current location
+                var playerLocation = await GetPlayersLocation(token);
+
+                // Filter active raids based on crystalType and find the nearest event raid
+                uint flagToCheck = crystalType == TeraCrystalType.Might ? 3u : 2u;
+                var nearestEventRaid = activeRaids
+                    .Where(raid => raid.IsEvent && raid.Flags == flagToCheck)
+                    .Select(raid => new { Raid = raid, Distance = CalculateDistance(playerLocation, (raid.Coordinates[0], raid.Coordinates[1], raid.Coordinates[2])) })
+                    .OrderBy(raid => raid.Distance)
+                    .FirstOrDefault();
+
+                if (nearestEventRaid != null)
+                {
+                    await TeleportToDen(nearestEventRaid.Raid.Coordinates[0], nearestEventRaid.Raid.Coordinates[1], nearestEventRaid.Raid.Coordinates[2], token);
+                    Log($"Teleported to nearest active {crystalType} event raid: {nearestEventRaid.Raid.DenIdentifier} Seed: {nearestEventRaid.Raid.Seed:X8}.");
+                }
             }
             else
             {
-                // Check if crystal type is Black or Base and if swapping has already been done
-                if ((crystalType == TeraCrystalType.Black || crystalType == TeraCrystalType.Base) && hasSwapped)
-                {
-                    //  Log($"CrystalType is {crystalType}, proceeding with re-swapping Area ID and Den ID.");
-                    string raidType = crystalType == TeraCrystalType.Black ? "Black" : "Base";
-                    await SwapRaidLocationsAsync(index, raidType, token).ConfigureAwait(false);
-                    await Task.Delay(1_500, token).ConfigureAwait(false);
-                }
-
+                List<long> ptr = DeterminePointer(index);
                 // Overriding the seed
                 byte[] inj = BitConverter.GetBytes(seed);
                 var currseed = await SwitchConnection.PointerPeek(4, ptr, token).ConfigureAwait(false);
@@ -1195,114 +1194,6 @@ namespace SysBot.Pokemon.SV.BotRaid
             uint num2 = (uint)xoroshiro128Plus.NextInt(4294967295uL);
             uint num3 = (uint)xoroshiro128Plus.NextInt(4294967295uL);
             return (((num3 >> 16) ^ (num3 & 0xFFFF)) >> 4 == ((num2 >> 16) ^ (num2 & 0xFFFF)) >> 4) ? 1 : 0;
-        }
-
-        private async Task SyncSeedToIndex(int index, string raidType, CancellationToken token)
-        {
-            if (index == -1)
-                return;
-
-            // Determine the target index based on the raid type
-            int targetIndex = raidType == "Distribution" ? 1 : 0;
-
-            // Determine pointers for the specified index and the target index
-            List<long> ptrAtIndex = DeterminePointer(index); // Pointer for the current index
-            List<long> ptrAtTarget = DeterminePointer(targetIndex); // Pointer for the target index
-
-            // Read the seed from the specified index
-            var seedBytesAtIndex = await SwitchConnection.PointerPeek(4, ptrAtIndex, token).ConfigureAwait(false);
-            uint seedAtIndex = BitConverter.ToUInt32(seedBytesAtIndex, 0);
-
-            // Write the seed to the target index
-            byte[] seedBytesToWrite = BitConverter.GetBytes(seedAtIndex);
-            await SwitchConnection.PointerPoke(seedBytesToWrite, ptrAtTarget, token).ConfigureAwait(false);
-
-            Log($"Synced seed from index {index} to index {targetIndex}");
-        }
-
-
-        private async Task SwapRaidLocationsAsync(int currentRaidIndex, string raidType, CancellationToken token)
-        {
-            // Determine the index to swap with based on the raid type
-            int swapWithIndex = raidType == "Distribution" ? 1 : 0;
-
-            // Get the pointers for the current raid index and the swap index
-            List<long> currentPointer = CalculateDirectPointer(currentRaidIndex);
-            List<long> swapPointer = CalculateDirectPointer(swapWithIndex);
-
-            int areaIdOffset = 20;
-            int denIdOffset = 25;
-            int lotteryGroupOffset = 24;
-
-            // Read and store area, den, and lottery group ID values for the swap index
-            if (!originalIdsSet)
-            {
-                uint areaIdSwapIndex = await ReadValue("Area ID", 4, AdjustPointer(swapPointer, areaIdOffset), token);
-                uint denIdSwapIndex = await ReadValue("Den ID", 4, AdjustPointer(swapPointer, denIdOffset), token);
-                uint lotteryGroupIdSwapIndex = await ReadValue("Lottery Group", 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
-
-                if (swapWithIndex == 0)
-                {
-                    areaIdIndex0 = areaIdSwapIndex;
-                    denIdIndex0 = denIdSwapIndex;
-                    lotteryGroupIdIndex0 = lotteryGroupIdSwapIndex;
-                }
-                else
-                {
-                    areaIdIndex1 = areaIdSwapIndex;
-                    denIdIndex1 = denIdSwapIndex;
-                    lotteryGroupIdIndex1 = lotteryGroupIdSwapIndex;
-                }
-
-                originalIdsSet = true;
-            }
-
-            // Read values from the current index
-            uint currentAreaId = await ReadValue("Area ID", 4, AdjustPointer(currentPointer, areaIdOffset), token);
-            uint currentDenId = await ReadValue("Den ID", 4, AdjustPointer(currentPointer, denIdOffset), token);
-            uint currentLotteryGroup = await ReadValue("Lottery Group", 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
-
-            if (!hasSwapped && (raidType == "Might" || raidType == "Distribution"))
-            {
-                uint swapAreaId = swapWithIndex == 0 ? areaIdIndex0 : areaIdIndex1;
-                uint swapDenId = swapWithIndex == 0 ? denIdIndex0 : denIdIndex1;
-                uint swapLotteryGroup = swapWithIndex == 0 ? lotteryGroupIdIndex0 : lotteryGroupIdIndex1;
-
-                // Perform swap
-                await LogAndUpdateValue("Area ID", swapAreaId, 4, AdjustPointer(currentPointer, areaIdOffset), token);
-                await LogAndUpdateValue("Den ID", swapDenId, 4, AdjustPointer(currentPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", swapLotteryGroup, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
-
-                await LogAndUpdateValue("Area ID", currentAreaId, 4, AdjustPointer(swapPointer, areaIdOffset), token);
-                await LogAndUpdateValue("Den ID", currentDenId, 4, AdjustPointer(swapPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", currentLotteryGroup, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
-
-                originalAreaId = currentAreaId;
-                originalDenId = currentDenId;
-                originalLotteryGroupId = currentLotteryGroup;
-                hasSwapped = true;
-            }
-            else if (hasSwapped && (raidType != "Might" && raidType != "Distribution"))
-            {
-                // Reversing swap for other raid types
-                Log("Reversing swap for non-Might/Distribution raid.");
-
-                // Swap current index back with original IDs
-                await LogAndUpdateValue("Area ID", originalAreaId, 4, AdjustPointer(currentPointer, areaIdOffset), token);
-                await LogAndUpdateValue("Den ID", originalDenId, 4, AdjustPointer(currentPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", originalLotteryGroupId, 4, AdjustPointer(currentPointer, lotteryGroupOffset), token);
-
-                uint restoreAreaId = hasSwapped ? areaIdIndex1 : areaIdIndex0;
-                uint restoreDenId = hasSwapped ? denIdIndex1 : denIdIndex0;
-                uint restoreLotteryGroup = hasSwapped ? lotteryGroupIdIndex1 : lotteryGroupIdIndex0;
-
-                // Restore swap index to its original state
-                await LogAndUpdateValue("Area ID", restoreAreaId, 4, AdjustPointer(swapPointer, areaIdOffset), token);
-                await LogAndUpdateValue("Den ID", restoreDenId, 4, AdjustPointer(swapPointer, denIdOffset), token);
-                await LogAndUpdateValue("Lottery Group", restoreLotteryGroup, 4, AdjustPointer(swapPointer, lotteryGroupOffset), token);
-
-                hasSwapped = false;
-            }
         }
 
         private async Task<uint> ReadValue(string fieldName, int size, List<long> pointer, CancellationToken token)
@@ -2776,7 +2667,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             bool writeRotationSuccess = await WriteEncryptedBlockSafe(rotationBlock, currentRotationData, rotationData, token);
         }
 
-        private async Task<List<(uint Area, uint LotteryGroup, uint Den, uint Seed)>> ExtractRaidInfo(TeraRaidMapParent mapType, CancellationToken token)
+        private async Task<List<(uint Area, uint LotteryGroup, uint Den, uint Seed, uint Flags, bool IsEvent)>> ExtractRaidInfo(TeraRaidMapParent mapType, CancellationToken token)
         {
             byte[] raidData;
             switch (mapType)
@@ -2794,14 +2685,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                     throw new InvalidOperationException("Invalid region");
             }
 
-            var raids = new List<(uint Area, uint LotteryGroup, uint Den, uint Seed)>();
+            var raids = new List<(uint Area, uint LotteryGroup, uint Den, uint Seed, uint Flags, bool IsEvent)>();
             for (int i = 0; i < raidData.Length; i += Raid.SIZE)
             {
-                var area = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 4, 4));
-                var lotteryGroup = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 8, 4));
-                var den = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 12, 4));
-                var seed = BinaryPrimitives.ReadUInt32LittleEndian(raidData.AsSpan(i + 16, 4)); // Assuming the seed is at offset 16
-                raids.Add((Area: area, LotteryGroup: lotteryGroup, Den: den, Seed: seed));
+                var raid = new Raid(raidData[i..(i + Raid.SIZE)]);
+                if (raid.IsValid)
+                {
+                    raids.Add((Area: raid.Area, LotteryGroup: raid.LotteryGroup, Den: raid.Den, Seed: raid.Seed, Flags: raid.Flags, IsEvent: raid.IsEvent));
+                }
             }
 
             return raids;
@@ -2900,7 +2791,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             return true;
         }
 
-        private async Task<List<(string DenIdentifier, float[] Coordinates, int Index, uint Seed)>> GetActiveRaidLocations(TeraRaidMapParent mapType, CancellationToken token)
+        private async Task<List<(string DenIdentifier, float[] Coordinates, int Index, uint Seed, uint Flags, bool IsEvent)>> GetActiveRaidLocations(TeraRaidMapParent mapType, CancellationToken token)
         {
             var raidInfo = await ExtractRaidInfo(mapType, token);
             Dictionary<string, float[]> denLocations = mapType switch
@@ -2911,14 +2802,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                 _ => throw new InvalidOperationException("Invalid region")
             };
 
-            var activeRaids = new List<(string DenIdentifier, float[] Coordinates, int Index, uint Seed)>();
+            var activeRaids = new List<(string DenIdentifier, float[] Coordinates, int Index, uint Seed, uint Flags, bool IsEvent)>();
             int index = 0;
-            foreach (var (Area, LotteryGroup, Den, Seed) in raidInfo)
+            foreach (var (Area, LotteryGroup, Den, Seed, Flags, IsEvent) in raidInfo)
             {
                 string raidIdentifier = $"{Area}-{LotteryGroup}-{Den}";
                 if (denLocations.TryGetValue(raidIdentifier, out var coordinates) && IsRaidActive((Area, LotteryGroup, Den)))
                 {
-                    activeRaids.Add((raidIdentifier, coordinates, index, Seed));
+                    activeRaids.Add((raidIdentifier, coordinates, index, Seed, Flags, IsEvent));
                 }
                 index++;
             }
@@ -3113,12 +3004,13 @@ namespace SysBot.Pokemon.SV.BotRaid
                         if (raid.IsEvent)
                         {
                             eventRaidFoundP = true; // Mark as found an event raid
-                            bool isDistributionRaid = raid.Flags == 3;
+                            bool isDistributionRaid = raid.Flags == 2; // Flag 2 for Distribution
+                            bool isMightyRaid = raid.Flags == 3;       // Flag 3 for Mighty
                             int raidDeliveryGroupId = isDistributionRaid ? distGroupIDs.FirstOrDefault() : mightGroupIDs.FirstOrDefault();
 
                             if (raidDeliveryGroupId != -1)
                             {
-                                if (Settings.EventSettings.EventsOn)  // Check if EventsOn is true before changing settings
+                                if (Settings.EventSettings.AutoDetectEvents)  // Check if AutoDetectEvents is true before changing settings
                                 {
                                     if (isDistributionRaid && !distGroupIDUpdated)
                                     {
@@ -3126,7 +3018,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                                         distGroupIDUpdated = true;
                                         Log($"Distribution Event found. Setting Group ID to {raidDeliveryGroupId}.");
                                     }
-                                    else if (!isDistributionRaid && !mightGroupIDUpdated)
+                                    else if (isMightyRaid && !mightGroupIDUpdated)  // Updated check for Mighty Raid
                                     {
                                         Settings.EventSettings.MightyGroupID = raidDeliveryGroupId;
                                         mightGroupIDUpdated = true;
@@ -3135,7 +3027,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                                 }
                                 else
                                 {
-                                    Log("Events are turned off. Not updating Delivery Group ID.");
+                                    Log("Event Found - But AutoDetectEvents is off.  Skipping auto updating Event Settings.");
                                 }
 
                                 // Get the species info
@@ -3153,7 +3045,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                                 Log("Failed to determine a valid Delivery Group ID.");
                             }
 
-                            if (Settings.EventSettings.EventsOn)
+                            if (Settings.EventSettings.AutoDetectEvents)
                             {
                                 Settings.EventSettings.EventActive = true;
                                 DisableMysteryRaidsIfEventActive();
@@ -3163,11 +3055,11 @@ namespace SysBot.Pokemon.SV.BotRaid
 
                     if (!eventRaidFoundP)
                     {
-                        Settings.EventSettings.MightyGroupID = -1;
-                        Settings.EventSettings.DistGroupID = -1;
-                        if (Settings.EventSettings.EventsOn)
+                        if (Settings.EventSettings.AutoDetectEvents)
                         {
                             Settings.EventSettings.EventActive = false;
+                            Settings.EventSettings.MightyGroupID = -1;
+                            Settings.EventSettings.DistGroupID = -1;
                         }
                     }
                 }

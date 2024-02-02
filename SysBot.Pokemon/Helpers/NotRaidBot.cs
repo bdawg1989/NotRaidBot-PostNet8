@@ -2,7 +2,7 @@
 {
     public static class NotRaidBot
     {
-        public const string Version = "v7.4";
+        public const string Version = "v7.5";
         public const string Attribution = "https://notpaldea.net";
         public const string ConfigPath = "config.json";
     }
