@@ -3163,8 +3163,24 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             for (int i = 0; i < allRaids.Count; i++)
             {
-                bool isDistributionRaid = allRaids[i].Flags == 3;
-                int raid_delivery_group_id = isDistributionRaid ? Settings.EventSettings.DistGroupID : Settings.EventSettings.MightyGroupID;
+                // Correctly identify the raid type based on the Flags value
+                bool isDistributionRaid = allRaids[i].Flags == 2; // Distribution Raid
+                bool isMightyRaid = allRaids[i].Flags == 3;       // Mighty Raid
+
+                // Set the raid_delivery_group_id based on the raid type
+                int raid_delivery_group_id;
+                if (isDistributionRaid)
+                {
+                    raid_delivery_group_id = Settings.EventSettings.DistGroupID;
+                }
+                else if (isMightyRaid)
+                {
+                    raid_delivery_group_id = Settings.EventSettings.MightyGroupID;
+                }
+                else
+                {
+                    continue; // Skip non-event raids or handle them as needed
+                }
 
                 var (pk, seed) = IsSeedReturned(allEncounters[i], allRaids[i]);
 
@@ -3202,7 +3218,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                         }
                         else
                         {
-                            RaidEmbedInfo.RaidLevel = 100;
+                            RaidEmbedInfo.RaidLevel = 75;
                         }
                         var pkinfo = RaidExtensions<PK9>.GetRaidPrintName(pk);
                         var strings = GameInfo.GetStrings(1);
@@ -3230,8 +3246,11 @@ namespace SysBot.Pokemon.SV.BotRaid
                         RaidEmbedInfo.ScaleText = $"{PokeSizeDetailedUtil.GetSizeRating(pk.Scale)}";
                         RaidEmbedInfo.ScaleNumber = pk.Scale;
                         // Update Species and SpeciesForm in ActiveRaids
-                        Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
-                        Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
+                        if (!Settings.ActiveRaids[a].ForceSpecificSpecies)
+                        {
+                            Settings.ActiveRaids[a].Species = (Species)allEncounters[i].Species;
+                            Settings.ActiveRaids[a].SpeciesForm = allEncounters[i].Form;
+                        }
                     }
                 }
             }

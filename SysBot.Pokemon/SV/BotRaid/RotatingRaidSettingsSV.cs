@@ -52,6 +52,7 @@ namespace SysBot.Pokemon
             public string[] Description { get; set; } = Array.Empty<string>();
             public bool IsCoded { get; set; } = true;
             public bool IsShiny { get; set; } = true;
+            public bool ForceSpecificSpecies { get; set; } = false;
             public Species Species { get; set; } = Species.None;
             public int SpeciesForm { get; set; } = 0;
             public string[] PartyPK { get; set; } = Array.Empty<string>();
