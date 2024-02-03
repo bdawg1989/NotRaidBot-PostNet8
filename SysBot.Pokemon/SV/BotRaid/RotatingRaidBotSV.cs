@@ -3182,7 +3182,14 @@ namespace SysBot.Pokemon.SV.BotRaid
                         a--;  // Decrement the index so that it does not skip the next element.
                         continue;  // Skip to the next iteration.
                     }
-
+                    if (Settings.ActiveRaids[a].PartyPK.Length == 0 && Settings.ActiveRaids[a].Species == Species.Ditto)
+                    {
+                        Settings.ActiveRaids[a].PartyPK = new string[] {
+                            "Happiny",
+                            "Shiny: Yes",
+                            "Level: 1"
+                        };
+                    }
                     if (seed == set)
                     {
                         var res = GetSpecialRewards(allRewards[i], Settings.EmbedToggles.RewardsToShow);
