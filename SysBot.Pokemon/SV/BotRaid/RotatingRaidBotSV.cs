@@ -1549,6 +1549,19 @@ namespace SysBot.Pokemon.SV.BotRaid
             await Click(HOME, 0_500, token).ConfigureAwait(false);
             await Click(HOME, 0_500, token).ConfigureAwait(false);
 
+            var raidInfo = Settings.ActiveRaids[RotationCount];
+
+            // Check if PartyPK is blank (empty array) and Species is Ditto
+            if (raidInfo.PartyPK.Length == 0 && raidInfo.Species == Species.Ditto)
+            {
+                // Construct Showdown template as an array of strings
+                raidInfo.PartyPK = new string[] {
+                    "Happiny",
+                    "Shiny: Yes",
+                    "Level: 1"
+                };
+            }
+
             var currentSeed = Settings.ActiveRaids[RotationCount].Seed;
             if (denHexSeed == currentSeed)
             {
@@ -3181,14 +3194,6 @@ namespace SysBot.Pokemon.SV.BotRaid
                         Settings.ActiveRaids.RemoveAt(a);
                         a--;  // Decrement the index so that it does not skip the next element.
                         continue;  // Skip to the next iteration.
-                    }
-                    if (Settings.ActiveRaids[a].PartyPK.Length == 0 && Settings.ActiveRaids[a].Species == Species.Ditto)
-                    {
-                        Settings.ActiveRaids[a].PartyPK = new string[] {
-                            "Happiny",
-                            "Shiny: Yes",
-                            "Level: 1"
-                        };
                     }
                     if (seed == set)
                     {
