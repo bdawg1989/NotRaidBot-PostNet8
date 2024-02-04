@@ -1551,17 +1551,6 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             var raidInfo = Settings.ActiveRaids[RotationCount];
 
-            // Check if PartyPK is blank (empty array) and Species is Ditto
-            if (raidInfo.PartyPK.Length == 0 && raidInfo.Species == Species.Ditto)
-            {
-                // Construct Showdown template as an array of strings
-                raidInfo.PartyPK = new string[] {
-                    "Happiny",
-                    "Shiny: Yes",
-                    "Level: 1"
-                };
-            }
-
             var currentSeed = Settings.ActiveRaids[RotationCount].Seed;
             if (denHexSeed == currentSeed)
             {

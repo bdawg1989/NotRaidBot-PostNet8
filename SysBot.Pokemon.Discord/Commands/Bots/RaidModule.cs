@@ -392,6 +392,15 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 AddedByRACommand = false,
                 Title = $"{(Species)pk.Species}",
             };
+            // Check if Species is Ditto and set PartyPK to Showdown template
+            if (newparam.Species == Species.Ditto)
+            {
+                newparam.PartyPK = new string[] {
+                    "Happiny",
+                    "Shiny: Yes",
+                    "Level: 1"
+                };
+            }
             Hub.Config.RotatingRaidSV.ActiveRaids.Add(newparam);
             await Context.Message.DeleteAsync().ConfigureAwait(false);
             var msg = $"Your new raid has been added.";
@@ -539,7 +548,15 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 RaidUpNext = false,
                 User = Context.User,
             };
-
+            // Check if Species is Ditto and set PartyPK to Showdown template
+            if (newparam.Species == Species.Ditto)
+            {
+                newparam.PartyPK = new string[] {
+                    "Happiny",
+                    "Shiny: Yes",
+                    "Level: 1"
+                };
+            }
             // Determine the correct position to insert the new raid after the current rotation
             int insertPosition = RotationCount + 1;
             while (insertPosition < Hub.Config.RotatingRaidSV.ActiveRaids.Count && Hub.Config.RotatingRaidSV.ActiveRaids[insertPosition].AddedByRACommand)
