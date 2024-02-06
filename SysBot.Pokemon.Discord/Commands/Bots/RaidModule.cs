@@ -77,7 +77,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             {
                 var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
                 var rewardsToShow = settings.EmbedToggles.RewardsToShow;
-                var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, isEvent);
+                var (_, embed) = RaidInfoCommand(seedValue, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, 0, isEvent);
 
                 var instructionMessage = await ReplyAsync("React with ✅ to add the raid to the queue.");
                 var message = await ReplyAsync(embed: embed);
@@ -508,9 +508,10 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 await ReplyAsync("Currently only Story Progress Level 6 (6* Unlocked) is allowed due to Active Event Settings.").ConfigureAwait(false);
                 return;
             }
+            int effectiveQueuePosition = 0;
             var selectedMap = IsBlueberry ? TeraRaidMapParent.Blueberry : (IsKitakami ? TeraRaidMapParent.Kitakami : TeraRaidMapParent.Paldea);
             var rewardsToShow = settings.EmbedToggles.RewardsToShow;
-            var (pk, raidEmbed) = RaidInfoCommand(seed, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow);
+            var (pk, raidEmbed) = RaidInfoCommand(seed, (int)crystalType, selectedMap, storyProgressLevel, raidDeliveryGroupID, rewardsToShow, effectiveQueuePosition);
             var description = string.Empty;
             var prevpath = "bodyparam.txt";
             var filepath = "RaidFilesSV\\bodyparam.txt";
@@ -548,6 +549,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
                 RaidUpNext = false,
                 User = Context.User,
             };
+
             // Check if Species is Ditto and set PartyPK to Showdown template
             if (newparam.Species == Species.Ditto)
             {
@@ -578,7 +580,7 @@ namespace SysBot.Pokemon.Discord.Commands.Bots
             }
 
             // Calculate the user's position in the queue and the estimated wait time
-            int effectiveQueuePosition = CalculateEffectiveQueuePosition(Context.User.Id, RotationCount);
+            effectiveQueuePosition = CalculateEffectiveQueuePosition(Context.User.Id, RotationCount);
             int etaMinutes = effectiveQueuePosition * 6;
 
             var queuePositionMessage = effectiveQueuePosition > 0

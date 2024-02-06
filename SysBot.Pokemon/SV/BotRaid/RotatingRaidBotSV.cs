@@ -3292,7 +3292,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             Log($"Seed {denHexSeedUInt:X8} not found in any region.");
         }
 
-        public static (PK9, Embed) RaidInfoCommand(string seedValue, int contentType, TeraRaidMapParent map, int storyProgressLevel, int raidDeliveryGroupID, List<string> rewardsToShow, bool isEvent = false)
+        public static (PK9, Embed) RaidInfoCommand(string seedValue, int contentType, TeraRaidMapParent map, int storyProgressLevel, int raidDeliveryGroupID, List<string> rewardsToShow, int queuePosition = 0, bool isEvent = false)
         {
             byte[] enabled = StringToByteArray("00000001");
             byte[] area = StringToByteArray("00000001");
@@ -3373,7 +3373,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             }
             var teraTypeLower = strings.Types[teraType].ToLower();
             var teraIconUrl = $"https://raw.githubusercontent.com/bdawg1989/sprites/main/teraicons/icon1/{teraTypeLower}.png";
-            var disclaimer = $"NotRaidBot {NotRaidBot.Version} by Gengar & Kai\nhttps://notpaldea.net";
+            var disclaimer = $"Current Position: {queuePosition}";
             var titlePrefix = raid.IsShiny ? "Shiny " : "";
             var formName = ShowdownParsing.GetStringFromForm(pk.Form, strings, pk.Species, pk.Context);
             var authorName = $"{stars} ★ {titlePrefix}{(Species)encounter.Species}{(pk.Form != 0 ? $"-{formName}" : "")}{(isEvent ? " (Event Raid)" : "")}";
