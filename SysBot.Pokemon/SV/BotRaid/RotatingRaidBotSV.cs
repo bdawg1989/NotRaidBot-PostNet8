@@ -1612,7 +1612,7 @@ namespace SysBot.Pokemon.SV.BotRaid
             return true;
         }
 
-        private async Task RollBackHour(CancellationToken token)
+        private async Task RollBackHour(int hours, CancellationToken token)
         {
             for (int i = 0; i < 2; i++)
                 await Click(B, 0_150, token).ConfigureAwait(false);
@@ -1644,51 +1644,9 @@ namespace SysBot.Pokemon.SV.BotRaid
 
             for (int i = 0; i < 3; i++) // Navigate to the hour setting
                 await Click(DRIGHT, 0_200, token).ConfigureAwait(false);
-            Log("Rolling Time Back 1 Hour.");
-            for (int i = 0; i < 1; i++) // Roll back the hour by 1
-                await Click(DDOWN, 0_200, token).ConfigureAwait(false);
 
-            for (int i = 0; i < 8; i++) // Mash DRIGHT to confirm
-                await Click(DRIGHT, 0_200, token).ConfigureAwait(false);
-
-            await Click(A, 0_200, token).ConfigureAwait(false); // Confirm date/time change
-            await Click(HOME, 1_000, token).ConfigureAwait(false); // Back to title screen
-        }
-
-        private async Task RollBackTime(CancellationToken token)
-        {
-            for (int i = 0; i < 2; i++)
-                await Click(B, 0_150, token).ConfigureAwait(false);
-
-            for (int i = 0; i < 2; i++)
-                await Click(DRIGHT, 0_150, token).ConfigureAwait(false);
-            await Click(DDOWN, 0_150, token).ConfigureAwait(false);
-            await Click(DRIGHT, 0_150, token).ConfigureAwait(false);
-            await Click(A, 1_250, token).ConfigureAwait(false); // Enter settings
-
-            await PressAndHold(DDOWN, 2_000, 0_250, token).ConfigureAwait(false); // Scroll to system settings
-            await Click(A, 1_250, token).ConfigureAwait(false);
-
-            if (Settings.MiscSettings.UseOvershoot)
-            {
-                await PressAndHold(DDOWN, Settings.MiscSettings.HoldTimeForRollover, 1_000, token).ConfigureAwait(false);
-                await Click(DUP, 0_500, token).ConfigureAwait(false);
-            }
-            else if (!Settings.MiscSettings.UseOvershoot)
-            {
-                for (int i = 0; i < 39; i++)
-                    await Click(DDOWN, 0_100, token).ConfigureAwait(false);
-            }
-
-            await Click(A, 1_250, token).ConfigureAwait(false);
-            for (int i = 0; i < 2; i++)
-                await Click(DDOWN, 0_150, token).ConfigureAwait(false);
-            await Click(A, 0_500, token).ConfigureAwait(false);
-
-            for (int i = 0; i < 3; i++) // Navigate to the hour setting
-                await Click(DRIGHT, 0_200, token).ConfigureAwait(false);
-
-            for (int i = 0; i < 5; i++) // Roll back the hour by 5
+            Log($"Rolling Time Back {hours} Hour(s).");
+            for (int i = 0; i < hours; i++) // Roll back the hour by 'hours'
                 await Click(DDOWN, 0_200, token).ConfigureAwait(false);
 
             for (int i = 0; i < 8; i++) // Mash DRIGHT to confirm
@@ -2444,15 +2402,31 @@ namespace SysBot.Pokemon.SV.BotRaid
 
         public async Task StartGameRaid(PokeRaidHubConfig config, CancellationToken token)
         {
-            // First, check if the time rollback feature is enabled
-            if (Settings.RaidSettings.EnableTimeRollBack && DateTime.Now - TimeForRollBackCheck >= TimeSpan.FromHours(5))
+            // Check if the time rollback feature is enabled
+            if (Settings.RaidSettings.EnableTimeRollBack)
             {
-                Log("Rolling Time back 5 hours.");
-                // Call the RollBackTime function
-                await RollBackTime(token).ConfigureAwait(false);
-                await Click(A, 1_500, token).ConfigureAwait(false);
-                // Reset TimeForRollBackCheck
-                TimeForRollBackCheck = DateTime.Now;
+                try
+                {
+                    long unixTime = await SwitchConnection.GetUnixTime(token).ConfigureAwait(false);
+                    DateTime currentTime = DateTimeOffset.FromUnixTimeSeconds(unixTime).DateTime;
+                    DateTime thresholdTime = currentTime.Date.AddHours(23);
+
+                    if (currentTime >= thresholdTime)
+                    {
+                        Log($"Current time is {currentTime}. Rolling back time to avoid day rollover.");
+                        await RollBackHour(5, token).ConfigureAwait(false);
+                    }
+                    else if (DateTime.Now - TimeForRollBackCheck >= TimeSpan.FromHours(1))
+                    {
+                        Log("Rolling Time back 1 hour.");
+                        await RollBackHour(1, token).ConfigureAwait(false);
+                        TimeForRollBackCheck = DateTime.Now;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"Error occurred during time rollback: {ex.Message}");
+                }
             }
 
             var timing = config.Timings;
