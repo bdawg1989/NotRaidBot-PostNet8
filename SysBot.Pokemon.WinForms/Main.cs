@@ -28,8 +28,6 @@ namespace SysBot.Pokemon.WinForms
 
             TC_Main.SelectedIndexChanged += TC_Main_SelectedIndexChanged;
             RTB_Logs.TextChanged += RTB_Logs_TextChanged;
-
-            SetButtonStartStateSafe(false);
         }
 
         private async Task InitializeAsync()
@@ -38,33 +36,9 @@ namespace SysBot.Pokemon.WinForms
                 return;
             string discordName = string.Empty;
 
-            // Existing license check code
-            string licenseKey = LicenseKeyHelper.ReadLicenseKey();
-            if (string.IsNullOrEmpty(licenseKey))
-            {
-                this.Show(); // Show the main form
-                await RegisterLicenseAsync();
-            }
-            else
-            {
-                // Fetch the Discord name
-                discordName = await LicenseKeyHelper.ValidateLicenseAndFetchNameAsync(licenseKey);
-                if (string.IsNullOrEmpty(discordName))
-                {
-                    // License is invalid; handle accordingly
-                    await RegisterLicenseAsync();
-                }
-            }
-            if (string.IsNullOrEmpty(LicenseKeyHelper.ReadLicenseKey()))
-            {
-                this.Show(); // Show the main form
-                await RegisterLicenseAsync();
-            }
             // Update checker
             UpdateChecker updateChecker = new UpdateChecker();
             await updateChecker.CheckForUpdatesAsync();
-
-            await StartupAsync();
 
             if (File.Exists(Program.ConfigPath))
             {
@@ -87,7 +61,7 @@ namespace SysBot.Pokemon.WinForms
             }
 
             LoadControls();
-            Text = $"{(string.IsNullOrEmpty(Config.Hub.BotName) ? "NOT RaidBot" : Config.Hub.BotName)} {NotRaidBot.Version} ({Config.Mode}) - Registered to: {(string.IsNullOrEmpty(discordName) ? "NOT REGISTERED" : discordName)}";
+            Text = $"{(string.IsNullOrEmpty(Config.Hub.BotName) ? "NOT RaidBot" : Config.Hub.BotName)} {NotRaidBot.Version} ({Config.Mode})";
             Task.Run(BotMonitor);
             InitUtil.InitializeStubs(Config.Mode);
         }
@@ -757,104 +731,6 @@ namespace SysBot.Pokemon.WinForms
 
             B_Start.BackColor = DarkRed;
             B_Start.ForeColor = SoftWhite;
-        }
-
-        public async Task StartupAsync()
-        {
-            try
-            {
-                string existingLicenseKey = LicenseKeyHelper.ReadLicenseKey();
-                if (string.IsNullOrEmpty(existingLicenseKey))
-                {
-                    // No existing license found; prompt user
-                    await RegisterLicenseAsync().ConfigureAwait(false);
-                }
-                else
-                {
-                    // Validate the existing license
-                    if (await LicenseKeyHelper.ValidateLicenseAsync(existingLicenseKey).ConfigureAwait(false))
-                    {
-                        // Proceed with application
-                        SetButtonStartStateSafe(true);
-
-                    }
-                    else
-                    {
-                        // Invalid license, maybe prompt the user to re-enter it
-                        await RegisterLicenseAsync().ConfigureAwait(false);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"An error occurred during startup: {ex.Message}");
-                Application.Exit();
-            }
-        }
-
-        private async Task RegisterLicenseAsync()
-        {
-            try
-            {
-                string savedLicenseKey = LicenseKeyHelper.ReadLicenseKey();
-                if (!string.IsNullOrEmpty(savedLicenseKey))
-                {
-                    if (await LicenseKeyHelper.ValidateLicenseAsync(savedLicenseKey))
-                    {
-                        SetButtonStartStateSafe(true);
-                        return;
-                    }
-                    else
-                    {
-                        MessageBox.Show("Saved license key is no longer valid.\nPlease contact support for help.\n\nhttps://notraidbot.net");
-                        LicenseKeyHelper.DeleteLicenseKey();  // Clear the invalid saved key
-                    }
-                }
-
-                using (var licenseForm = new LicenseForm())
-                {
-                    if (licenseForm.ShowDialog() == DialogResult.OK)
-                    {
-                        string newLicenseKey = licenseForm.LicenseKey;
-
-                        if (await LicenseKeyHelper.ValidateLicenseAsync(newLicenseKey))
-                        {
-                            SetButtonStartStateSafe(true);
-                            LicenseKeyHelper.SaveLicenseKey(newLicenseKey);
-                        }
-                        else
-                        {
-                            MessageBox.Show("Invalid or used license key.\nPlease contact support for help.\n\nhttps://notraidbot.net");
-                            SetButtonStartStateSafe(false);
-                            Application.Exit();
-                        }
-                    }
-                    else
-                    {
-                        SetButtonStartStateSafe(false);
-                        Application.Exit();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"An error occurred: {ex.Message}");
-            }
-        }
-
-        private void SetButtonStartStateSafe(bool state)
-        {
-            if (B_Start.InvokeRequired)
-            {
-                B_Start.Invoke((MethodInvoker)delegate
-                {
-                    B_Start.Enabled = state;
-                });
-            }
-            else
-            {
-                B_Start.Enabled = state;
-            }
         }
     }
 }
