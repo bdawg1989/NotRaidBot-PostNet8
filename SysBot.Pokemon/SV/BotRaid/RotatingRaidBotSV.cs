@@ -2111,7 +2111,7 @@ namespace SysBot.Pokemon.SV.BotRaid
                 }
 
             string disclaimer = Settings.ActiveRaids.Count > 1
-                                ? $"NRB {NotRaidBot.Version} - notpaldea.net"
+                                ? $"notpaldea.net"
                                 : "";
 
             var turl = string.Empty;
